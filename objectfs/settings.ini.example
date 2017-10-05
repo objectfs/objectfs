@@ -1,0 +1,84 @@
+[swift-auth]
+user = 
+key = 
+url = http://localhost:8080/auth/v1.0
+[s3-auth]
+aws_region = us-west-1
+endpoint = http://local:4567/
+aws_access_key_id = local-indentity
+aws_secret_access_key = local-credential
+[store]
+name = Swift
+num_threads = 10
+;block size for cache blocks
+block_size = 20971520
+[file-system-mount]
+mount_point = /data/test/
+[file-system-make]
+;size in bytes
+total_size = 10737418240
+;number of directories and files
+num_inodes = 100000
+block_size = 4194304
+num_threads = 1
+[file-system-superblock]
+inode_counter = inode_counter
+max_inodes = max_inodes
+block_size = block_size
+total_size = total_size
+used_size = used_size
+free_inode_id = free_inode_id
+[redis]
+host = localhost
+port = 6379
+db = 0
+max_connections = 1000
+[loggers]
+keys = root,core,core.cache,core.data,core.metadata
+[handlers]
+keys = logfile
+[formatters]
+keys = formatter
+[logger_root]
+propagate = 0
+qualname = root
+level = DEBUG
+handlers = logfile
+[logger_objectfs]
+level = DEBUG
+propagate = 0
+handlers = logfile
+qualname = objectfs
+[logger_core]
+level = DEBUG
+propagate = 0
+handlers = logfile
+qualname = core
+[logger_core.data]
+level = DEBUG
+propagate = 0
+handlers = logfile
+qualname = core.data
+[logger_core.cache]
+level = DEBUG
+propagate = 0
+handlers = logfile
+qualname = core.cache
+[logger_core.metadata]
+level = DEBUG
+propagate = 0
+handlers = logfile
+qualname = core.metadata
+[handler_stream_handler]
+class = StreamHandler
+level = DEBUG
+formatter = formatter
+args = (sys.stdout,)
+[handler_logfile]
+class = handlers.RotatingFileHandler
+level = DEBUG
+formatter = formatter
+args = ('/var/log/objectfs/core.log','a',104857600,10)
+[formatter_formatter]
+format = [%(asctime)s] [%(levelname)s] [%(name)s:%(lineno)s] %(message)s
+datefmt = %Y/%b/%d %H:%M:%S
