@@ -1,0 +1,188 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+from __future__ import absolute_import, print_function
+import argparse
+import llfuse
+from objectfs.core.objectfs_operations import ObjectFsOperations
+from objectfs.core.metadata.superblock import SuperBlock
+from objectfs.core.data.objectstore import ObjectStore
+from objectfs.core.metadata.metastore import MetaStore
+from objectfs.settings import Settings
+settings = Settings()
+import logging
+logger = logging.getLogger(__name__)
+
+FS_NAME_SIZE = 8
+SPECIAL_CHARS = '[]~`!@#$%^&*(){}+=-:;"'
+
+class ObjectFs(object):
+    
+    def __init__(self):
+        self.parser_args = self._parse_args()
+        self.parser_args.func()
+    
+    def _check_file_name(self):
+        """Check file name for special characters and name"""
+        if len(self.parser_args.name) > FS_NAME_SIZE:
+            logger.error("File-system name {} is too long. Name should be less then {} characters".format(self.parser_args.name, FS_NAME_SIZE))
+            raise ValueError("File-system name {} is too long. Name should be less then {} characters".format(self.parser_args.name, FS_NAME_SIZE))
+        if set(SPECIAL_CHARS).intersection(self.parser_args.name):
+            logger.error("File-system name {} cannot container special characters {}".format(self.parser_args.name, SPECIAL_CHARS))
+            raise ValueError("File-system name {} cannot container special characters {}".format(self.parser_args.name, SPECIAL_CHARS))
+    
+    def _check_file_system_exists(self):
+        """Check if a file-system exists"""
+        for container_item in ObjectStore.load(self.parser_args.name).load_container().list():
+            if container_item.name == self.parser_args.name:
+                return True
+        return False
+
+    def make_filesystem(self):
+        """Make an objectfs file-system"""
+        self._check_file_name()
+        # check if file-system exists
+        if self._check_file_system_exists():
+            logger.error("File-system with name {} already exists.".format(self.parser_args.name))
+            raise ValueError("File-system with name {} already exists.".format(self.parser_args.name))
+        # create the file-system super-block
+        super_block = SuperBlock(self.parser_args.name)
+        # init the block and set changing values - used_size, free_inode_id, inode_counter
+        super_block.init_superblock()
+        # set the constant values based on user input
+        super_block.max_inodes = self.parser_args.num_nodes
+        super_block.total_size = self.parser_args.size
+        super_block.block_size = self.parser_args.block_size
+        # create the container
+        ObjectStore.load(self.parser_args.name).container.create()
+        # setup root node
+        object_fs_operations = ObjectFsOperations(self.parser_args.name)
+        object_fs_operations.setup_root_inode()
+        # print message
+        print("File-system {} made".format(self.parser_args.name))
+        logger.info("File-system {} made".format(self.parser_args.name))
+
+    def mount_filesystem(self):
+        """Mount an objectfs file-system"""
+        # check if container was created
+        container_list = []
+        for container_item in ObjectStore.get_store().load_container().list():
+            container_list.append(container_item.name)
+        if self.parser_args.name not in container_list:
+            logger.error("File-system with name {} has not been intialized in the object store.".format(self.parser_args.name))
+            raise ValueError("File-system with name {} has not been intialized in the object store.".format(self.parser_args.name))
+        super_block = SuperBlock(self.parser_args.name)
+        if not super_block.exists():      
+            logger.error("File-system with name {} has not been intialized in the memory store.".format(self.parser_args.name))
+            raise ValueError("File-system with name {} has not been intialized in the memory store.".format(self.parser_args.name))
+        fuse_options = set(llfuse.default_options)
+        fuse_options.add('fsname={}'.format(self.parser_args.name))
+        fuse_options.add('debug')
+        # fuse_options.add('max_read=131072')
+        # fuse_options.add('max_write=262144')
+        # fuse_options.add('async')
+        # fuse_options.add('large_read')
+        # fuse_options.add('auto_cache')
+        fuse_options.add('nosuid')
+        fuse_options.discard('default_permissions')
+        object_fs_operations = ObjectFsOperations(self.parser_args.name, cache_flag=self.parser_args.cache)
+        logger.info("File-system {} mounted at {}".format(self.parser_args.name, self.parser_args.mount_point))
+        llfuse.init(object_fs_operations, self.parser_args.mount_point, fuse_options)
+        # print message
+        print("File-system {} mounted at {}".format(self.parser_args.name, self.parser_args.mount_point))
+        try:
+            llfuse.main(workers=self.parser_args.num_threads)
+        except Exception as e:
+            logger.error("File-system got an error. Closing.", exc_info=True)
+            llfuse.close(unmount=True)
+            raise
+            
+        llfuse.close()
+        return
+
+    def list_filesystem(self):
+        """List all objectfs file-systems for this user"""
+        # KL TODO currently we list all file-systems without any ACL
+        print("Name \t Used Size(MB) \t Total Size(MB) \n")
+        for container_item in ObjectStore.get_store().load_container().list():
+            super_block = SuperBlock(container_item.name)
+            size_divider = 1024*1024
+            print("{} \t {} \t {} \n".format(container_item.name, super_block.used_size/size_divider, super_block.total_size/size_divider))
+
+    def delete_filesystem(self):
+        """Delete an objectfs file-system"""
+        # check if file-system exists
+        if not self._check_file_system_exists():
+            logger.error("File-system {} does not exist. Cannot be deleted.".format(self.parser_args.name))
+            raise ValueError("File-system {} does not exist. Cannot be deleted.".format(self.parser_args.name))
+        # delete the superblock
+        super_block = SuperBlock(self.parser_args.name)
+        super_block.delete_superblock()
+        # delete all the inodes
+        MetaStore.load(self.parser_args.name)._clean_store()
+        # delete the container and all objects within it
+        ObjectStore.load(self.parser_args.name).container.delete()
+        # print message
+        logger.info("File-system {} delete.".format(self.parser_args.name))
+        print("File-system {} delete.".format(self.parser_args.name))
+
+    def tune_filesystem(self):
+        """Tune an objectfs file-system"""
+        super_block = SuperBlock(self.parser_args.name)
+        if self.parser_args.size:
+            if super_block.total_size < 0:
+                logger.error("Cannot increase File-system {} size by negative value {}".format(self.parser_args.name, self.parser_args.size))
+                raise ValueError("Cannot increase File-system {} size by negative value {}".format(self.parser_args.name, self.parser_args.size))
+            super_block.total_size += self.parser_args.size
+        if self.parser_args.num_nodes:
+            if self.parser_args.num_nodes < 0:
+                logger.error("Cannot increase File-system {} size by negative value {}".format(self.parser_args.name, self.parser_args.size))
+                raise ValueError("Cannot increase File-system {} size by negative value {}".format(self.parser_args.name, self.parser_args.size))
+            super_block.max_inodes += self.parser_args.num_nodes 
+
+    def _parse_args(self):
+        """Parse arguments"""    
+
+        parser = argparse.ArgumentParser(description='ObjectFS command line utils')
+        parser.add_argument('--debug', action='store_true', default=False, help='Turn on the debug mode. Default:False')
+        sub_parsers = parser.add_subparsers(help='commands')
+
+        # make file-system
+        make_parser = sub_parsers.add_parser('make', help='Make a file-system')
+        make_parser.add_argument('name', type=str, help='Name of ObjectFS')
+        make_parser.add_argument('-s', '--size', type=int, default=settings.FS_SIZE, help='Maximum possible size in Bytes. Default: {} Bytes'.format(settings.FS_SIZE))
+        make_parser.add_argument('-i', '--num_nodes', type=int, default=settings.FS_NUM_INODES, help='Number of maximum possible Inodes. Default: {}'.format(settings.FS_NUM_INODES))
+        make_parser.add_argument('-b', '--block_size', type=int, default=settings.FS_BLOCK_SIZE, help='Block size in Bytes. Default: {} Bytes'.format(settings.FS_BLOCK_SIZE))
+        make_parser.set_defaults(func=self.make_filesystem)
+
+        # mount file-system
+        mount_parser = sub_parsers.add_parser('mount')
+        mount_parser.add_argument('name', type=str, help='Name of ObjectFS')
+        mount_parser.add_argument('mount_point', type=str, help='Mount point for ObjectFS')
+        mount_parser.add_argument('-n', '--num_threads', type=int, default=settings.FS_NUM_THREADS, help='Number of threads. Default: {}'.format(settings.FS_NUM_THREADS))
+        mount_parser.add_argument('--cache', action='store_false', help='Turn on Caching. Default: {}'.format(settings.FS_NUM_THREADS))
+        mount_parser.set_defaults(func=self.mount_filesystem)
+
+        # list file-system
+        list_parser = sub_parsers.add_parser('list')
+        list_parser.set_defaults(func=self.list_filesystem)
+
+        # delete file-system
+        delete_parser = sub_parsers.add_parser('delete')
+        delete_parser.add_argument('name', type=str, help='Name of ObjectFS')
+        delete_parser.set_defaults(func=self.delete_filesystem)
+
+        # tune the file-system
+        tune_parser = sub_parsers.add_parser('tune')
+        tune_parser.add_argument('name', type=str, help='Name of ObjectFS')
+        tune_parser.add_argument('-s', '--size', type=int, default=None, help='Increase the size in bytes.')
+        tune_parser.add_argument('-i', '--num_nodes', type=int, default=None, help='Increase the number of inodes')
+        tune_parser.set_defaults(func=self.tune_filesystem)
+
+        return parser.parse_args()
+
+def main():
+    
+    object_fs = ObjectFs()
+
+if __name__ == '__main__':
+    main()
