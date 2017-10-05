@@ -1,0 +1,5 @@
+python-swiftclient
+boto3
+redis
+llfuse
+configparser
