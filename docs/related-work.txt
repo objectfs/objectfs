@@ -1,0 +1,58 @@
+* Two-tier FS by John Bent @ EMC:
+
+http://docs.orangefs.com/download/2_Tiers_DLN_BoF_for_SC15.pptx
+http://www.pdl.cmu.edu/SDI/2015/slides/Faibish-CMU-PDL-Spring-2015-final.pdf
+
+* MarFS
+
+https://www.snia.org/sites/default/files/SDC/2016/presentations/keynote_general/Gary_Grider_MarFS_Scalable_Near-POSIX_File_System_over_Cloud_Objects_HPC_Cool_Storage.pdf
+
+It seems they keep metadata in GPFS?
+
+* PLFS
+
+http://pages.cs.wisc.edu/~johnbent/Pubs/bent_hppio14.pdf
+
+* OrangeFS
+
+Part of kernel mainline now.
+
+* GPFS
+
+* Scality
+
+
+* IBM Storage Tank
+
+SAN-based distributed object storage system for use in heterogeneous
+environments.
+
+* Ceph
+
+- Cannot run on S3, Carlos confirmed it. It seems they are not even thinking about it.
+Their internal object protocol relies on PATCH and other things.
+
+* IBM Cleversafe has a contractor working on file system interface on top
+of object storage. The code name of the project is cardinal. We need
+to contact them through Larry.
+
+
+* Lawrence Livermore lab has a number of projects that merge burst buffers,
+object, and file system. Marfs and some ephemeral staff Kunal has mentioned.
+He said there are paper published also.
+
+* EMC Maginatics
+we need to know more about it
+
+* EMC ISILON
+
+* EMC ATMOS 
+
+* s3fs
+
+* Michael Factor, Deep Learning, File system on object storage
+
+* The XtreemFS architecture – a
+case for object-based file systems
+in Grids
+

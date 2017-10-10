@@ -1,0 +1,4 @@
+*.ppt filter=lfs diff=lfs merge=lfs -text
+objectfs_external.pptx filter=lfs diff=lfs merge=lfs -text
+objectfs.pptx filter=lfs diff=lfs merge=lfs -text
+*.pptx filter=lfs diff=lfs merge=lfs -text

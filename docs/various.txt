@@ -1,0 +1,135 @@
+********************************************************
+Summary of the presentation to HPT group on 2017 July 17
+********************************************************
+
+-- Currently ObjectFS uses Redis to store all metadata: namespace, attibutes
+(inodes), and structural. Redis is usually described as an in-memory (volatile)
+data-structure store.  Two questions arise from this:
+
+1) If, when, and how does metadata get becomes persistent?
+
+2) The maximum size of Redis store is the the sum of RAM in Redis cluster. It
+does not extend to the typical persistent storage like SSDs or disk.
+
+-- Slide comments:
+	- add slide numbers
+	- state LoC count
+	- in extend slides we need to have a slide on object interface
+	  primitives we rely on: PUT, GET, LIST, ...
+	  objects are immutable (no PATCHing).
+	- FUSE in not very simple but simpler than in kernel
+	- name containers so that they match services
+
+
+-- Pythnon has issues with multi-threading. There is, however, decent multiprocessing
+support How does ll-fuse go about it?
+
+-- People do raise questions about other functionalities that nowadays expected
+from a large file system:
+	- snapshots
+	- quoata support
+
+-- We map one file to on object. It clearly can be a problem for small writes in the middle
+of large files (read-modify-write). Some solutions (MarFS?) map one file to multiple chunks.
+I think this is one mode that we might want to support out of the box...
+
+-- Furthremore, some solutions (MarFS) group many small file in a single object to
+improve throughput. Probably not the first thing we will work on.
+
+-- We need to have good answers about typical workloads behavior. E.g., one creates
+a file and sequentially writes it in 512KB units. Read-modify-write is gonna kill us,
+what is our plan? Think about other workloads using the same logic.
+
+-- Another workload is file creation in the smae directory from multiple nodes.
+
+-- HPT relies on the fact that there is fast local storage in the client, specifically,
+they seem to rely NVMe Flash. Currently ObjectFS does not use this component anyhow.
+First, we need to understand if we want to manage HPT in ObjectFS directly. Or, we "donate"
+this resouce either to object store or to Redis and they will do caching?
+
+-- In future we can also consider real NVRAM (e.g., 3D XPoint) in client for same or different
+purpose as above.
+
+-- HPT uses GPFS for managing namespace (and locking, and ...) in HPT. Wayne suggested, that
+ObjectFS could be sitting at the lower tier, which is expected to be Object. Eg.g., we can
+use some time-insensetive analysis on storage servers.
+
+-- Often people in HPC talk about XXX PB/sec and such numbers. E.g., Wayne mentioned
+6PB/sec and 20PB/sec in HPT. But we did not think about any of those characteristics
+in ObjectFS setups. But we should. We can start with looking in Object storage performance
+characteristics.
+
+-- Does mmap work on fuse, ll-fuse, and in ObjecFS? This can be a common but not
+ver friendly workload for us.
+
+-- A common question we get why file system on object rather then object on
+file system (e.g., Swift on GPFS). Our straight-forward answer is cost and
+future of the backend storage as object. But we need to think more about this.
+
+-- Example: when we create file we need to perform a set of actions: update
+several key-values in a KV store and save the object. Ideally, all this
+operations should be atomically udpated (visible) only. So, the order of operations
+and atomicity need to be discussed.
+
+-- To how big cluster can we scale? 4,000? I.e. we need to quantify scalability. A model?
+
+
+*****************************************************************
+Summary of the presentation to Cloud/Mobile group on 2017 July 25
+*****************************************************************
+
+(* not duplicating comments from previous meetings)
+
+-- Many people ask why Object Storage is chepaer? Few possibilities:
+	- lower performance expected
+	- just a temporary event to attract people
+	- simpler workload => no need for complexity
+	- economy of scale?
+	- In Cloud, people pay for PUT/GET that might change the eq.
+
+-- DashDB on our file system - can we run? In multi-node case - does it
+use file system for sync?
+
+-- We have very wage definition of "configurable consistency guarantees". Need
+to perform robust classification.
+
+-- Access control and how it maps to file system users? Especially in multi-case
+(multi-tennant) use case?
+
+-- We report file system capacity. But in Cloud we often  want to encourage
+people to use more but not limitting anything.
+
+-- Some questions on Amazon EFS. We need to try to use it. Do they limit capacity?
+
+-- We currently do not store file extended attributes. In object storage objects
+can have attributes that can be set/got independently from object data. It seems
+logical to map setxattr() and getxattr() to corresponding object operations.
+
+-- FUSE is not secure. Why? 
+
+-- checkout and compare to NFS file system with customizable IOPS (per GB) in Bluemix
+
+*****************************************************************
+Intern Presentation on 2017 July 31
+*****************************************************************
+
+-- Limited number of I/Os to ObjectFS  (cache does not really help).
+
+-- Possibility (not just performance) of large files
+
+-- Performance compared to GPFS?
+
+-- Do we include PUT/GET cost in computation of price
+difference (5x cost)
+
+
+********************************************************
+Assorted
+********************************************************
+
+-- One interesting aspect of objects vs. file is that there
+is no concept of open. I.e., no state at all.
+
+-- EFS: 30c/GB, S3: 2.5c/GB
+
+-- we need to compare performance to s3fs
