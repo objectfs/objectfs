@@ -2,6 +2,8 @@ from __future__ import print_function, absolute_import
 from abc import abstractmethod
 import redis
 import llfuse
+import os
+import stat
 from objectfs.core.common.redispool import RedisPool
 from objectfs.settings import Settings
 settings = Settings()
@@ -16,44 +18,46 @@ DATA_DELIMITER = '&'
 class CacheStore(object):
     
     @staticmethod
-    def load(fs_name, cache_store='Redis'):
+    def load(fs_name, cache_store=settings.CACHE_STORE):
         return CacheStore.get_store(cache_store)(fs_name)
     
     @staticmethod
-    def get_store(cache_store='Redis'):
+    def get_store(cache_store=settings.CACHE_STORE):
         if cache_store == 'Redis':
             return RedisCacheStore
+        elif cache_store == 'File':
+            return FileCacheStore
         else:
             logger.error("Cache store in {} is not supported".format(cache_store))
             raise e
 
     @abstractmethod
-    def write_inode(self, inode_id, offset, buf):
+    def write_inode(self, inode_id, object_block_id, offset, buf):
         """Write an inode to cache"""
         return NotImplemented
 
     @abstractmethod
-    def read_inode(self, inode_id, offset, size):
+    def read_inode(self, inode_id, object_block_id, offset, size):
         """Read an inode from cache"""
         return NotImplemented
     
     @abstractmethod
-    def put_inode(self, inode_id, data):
+    def put_inode(self, inode_id, object_block_id, data):
         """Put an inode inside cache"""
         return NotImplemented
     
     @abstractmethod
-    def get_inode(self, inode_id):
+    def get_inode(self, inode_id, object_block_id):
         """Get an inode from the cache"""
         return NotImplemented
     
     @abstractmethod
-    def remove_inode(self, inode_id):
+    def remove_inode(self, inode_id, object_block_id):
         """Delete the inode from cache"""
         return NotImplemented
     
     @abstractmethod
-    def exists_inode(self, inode_id):
+    def exists_inode(self, inode_id, object_block_id):
         """Check if inode exists"""
         return NotImplemented
     
@@ -130,4 +134,78 @@ class RedisCacheStore(CacheStore):
             return response
         except Exception as e:
             logger.error("Failed to check if inode:{} exists".format(inode_id), exc_info=True)
+            raise e
+
+class FileCacheStore(CacheStore):
+
+    def __init__(self, fs_name):
+        self._fs_name = fs_name
+        
+    def _cache_key(self, inode_id, object_block_id):
+        return '{}{}{}{}{}{}{}{}'.format(settings.FILE_CACHE_MOUNT_POINT, self._fs_name, FS_DELIMITER, 'data', FS_DELIMITER, inode_id, FS_DELIMITER, object_block_id)
+    
+    def _open_cache_block(self, inode_id, object_block_id, file_flag):
+        return os.open(self._cache_key(inode_id, object_block_id), file_flag) 
+
+    def write_inode(self, inode_id, object_block_id, offset, buf):
+        """Write an inode to cache"""
+        try:
+            logger.debug("Write inode:{} to cache at offset:{},length:{}".format(inode_id, offset, len(buf)))
+            # opening the file with write only and direct mode
+            file_descp = self._open_cache_block(inode_id, object_block_id, os.O_WRONLY | os.O_CREAT)
+            # set to SEEK_SET which is relative to start of file
+            os.lseek(file_descp, offset, os.SEEK_SET)
+            os.write(file_descp, buf)
+        except Exception as e:
+            print(e)
+            raise e
+
+    def read_inode(self, inode_id, object_block_id, offset, size):
+        """Read an inode from cache"""
+        try:
+            logger.debug("Read inode:{} from cache with offset:{},size:{}".format(inode_id, offset, size))
+            # opening the file with read only and direct mode
+            file_descp = self._open_cache_block(inode_id, object_block_id, os.O_RDONLY | os.O_CREAT)
+            # set to SEEK_SET which is relative to start of file
+            os.lseek(file_descp, offset, os.SEEK_SET)
+            return os.read(file_descp, size)
+        except Exception as e:
+            print(e)
+            raise e
+    
+    def get_inode(self, inode_id, object_block_id):
+        """Get an inode from the cache"""
+        try:
+            return ''
+        except Exception as e:
+            print(e)
+            raise e
+
+    def put_inode(self, inode_id, object_block_id, data):
+        """Put an inode inside cache"""
+        try:
+            logger.debug("Put inode:{} into cache".format(inode_id))
+            # os.mknod(self._cache_key(inode_id, object_block_id), mode=0600|stat.S_IFREG)
+            file_descp = os.open(self._cache_key(inode_id, object_block_id), os.O_CREAT)
+            os.close(file_descp)
+        except Exception as e:
+            print(e)
+            raise e
+    
+    def remove_inode(self, inode_id, object_block_id):
+        """Delete the inode from cache"""
+        try:
+            logger.debug("Remove inode:{} from cache".format(inode_id))
+            os.unlink(self._cache_key(inode_id, object_block_id))
+        except Exception as e:
+            print(e)
+            raise e
+
+    def exists_inode(self, inode_id, object_block_id):
+        """Check if inode exists"""
+        try:
+            logger.debug("Check if inode:{} exists".format(inode_id))
+            return os.path.exists(self._cache_key(inode_id, object_block_id))
+        except Exception as e:
+            print(e)
             raise e
