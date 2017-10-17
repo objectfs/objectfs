@@ -28,11 +28,16 @@ block_size = block_size
 total_size = total_size
 used_size = used_size
 free_inode_id = free_inode_id
+[cache]
+name = File
+block_size = 20971520
 [redis]
 host = localhost
 port = 6379
 db = 0
 max_connections = 1000
+[file-cache]
+mount_point = /data/tmpfs
 [loggers]
 keys = root,core,core.cache,core.data,core.metadata
 [handlers]

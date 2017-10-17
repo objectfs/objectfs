@@ -71,6 +71,10 @@ class Settings(object):
     @property 
     def OBJECT_STORE(self):
         return self.parser.get('store', 'name')
+    
+    @property
+    def CACHE_STORE(self):
+        return self.parser.get('cache', 'name')
 
     @property
     def NUM_THREADS(self):
@@ -115,6 +119,10 @@ class Settings(object):
     @property
     def REDIS_MAX_CONNECTIONS(self):
         return self.parser.getint('redis', 'max_connections')
+    
+    @property
+    def FILE_CACHE_MOUNT_POINT(self):
+        return self.parser.get('file-cache', 'mount_point')
 
     @property
     def SB_INODE_COUNTER(self):
