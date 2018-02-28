@@ -3,12 +3,13 @@ user =
 key = 
 url = http://localhost:8080/auth/v1.0
 [s3-auth]
-aws_region = us-west-1
+aws_region = us-east-1
+; this is the development URL, leave blank for AWS
 endpoint = http://local:4567/
 aws_access_key_id = local-indentity
 aws_secret_access_key = local-credential
 [store]
-name = Swift
+name = S3
 num_threads = 10
 ;block size for cache blocks
 block_size = 20971520
@@ -29,7 +30,7 @@ total_size = total_size
 used_size = used_size
 free_inode_id = free_inode_id
 [cache]
-name = File
+name = Redis
 block_size = 20971520
 [redis]
 host = localhost
