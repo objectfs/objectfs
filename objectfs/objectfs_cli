@@ -100,7 +100,7 @@ class ObjectFs(object):
         # fuse_options.add('auto_cache')
         fuse_options.add('nosuid')
         fuse_options.discard('default_permissions')
-        object_fs_operations = ObjectFsOperations(self.parser_args.name, cache_flag=self.parser_args.cache)
+        object_fs_operations = ObjectFsOperations(self.parser_args.name, cache_flag=self.parser_args.cache, multipart_flag=self.parser_args.multipart)
         logger.info("File-system {} mounted at {}".format(self.parser_args.name, self.parser_args.mount_point))
         llfuse.init(object_fs_operations, self.parser_args.mount_point, fuse_options)
         # print message
@@ -175,7 +175,8 @@ class ObjectFs(object):
         mount_parser.add_argument('name', type=str, help='Name of ObjectFS')
         mount_parser.add_argument('mount_point', type=str, help='Mount point for ObjectFS')
         mount_parser.add_argument('-n', '--num_threads', type=int, default=settings.FS_NUM_THREADS, help='Number of threads. Default: {}'.format(settings.FS_NUM_THREADS))
-        mount_parser.add_argument('--cache', action='store_false', help='Turn on Caching. Default: {}'.format(settings.FS_NUM_THREADS))
+        mount_parser.add_argument('--cache', action='store_true', default=False, help='Turn on Caching. Default: {}'.format('False'))
+        mount_parser.add_argument('--multipart', action='store_true', default=False, help='Turn on Multi-part. Default: {}'.format('False'))
         mount_parser.set_defaults(func=self.mount_filesystem)
 
         # list file-system
