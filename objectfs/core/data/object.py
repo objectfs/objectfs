@@ -218,10 +218,15 @@ class S3Object(DataObject):
             return (response['ETag'].strip('"'), object_block_id+1)
         except Exception as e:
             logger.debug("Error in uploading MULTIPART {} part {} for object {} for S3 bucket {}".format(multipart_id, object_block_id+1, self.name, self.container.name, exc_info=True))
+            raise e
 
     def complete_multipart_upload(self, multipart_id, etag_part_list):
         """Complete a multipart upload"""
         try:
+            # S3 expects the etag part list to be sorted by the Part Number
+            # we have to specify the partnumber as the explicit key here
+            # otherwise it messes up sorting the dict
+            etag_part_list.sort(key=lambda x:x["PartNumber"])
             logger.debug("Completing upload for multipart {}".format(multipart_id))
             response = self.fetch_multipart(multipart_id).complete(
                     MultipartUpload = {
@@ -231,6 +236,7 @@ class S3Object(DataObject):
             return response
         except Exception as e:
             logger.error("Error in completing upload for multipart {}".format(multipart_id, exc_info=True))
+            raise e
 
     def get(self, object_block_id=None):
         """Get an object"""
@@ -274,7 +280,7 @@ class S3Object(DataObject):
         """Renames an object. This method copies the object into the new object name and 
         then delets the old copy"""
         try:
-            new_object = self._connection.conn.Object(self.container.name, '{}{}{}'.format(self._inode.parent_inode_id, OBJECT_DELIMITER, new_object_name))
+            new_object = self._connection.conn.Object(self.container.name, '{}'.format(new_object_name))
             new_object.copy_from(CopySource='{}/{}'.format(self.container.name, self.name))
             self.delete()
         except Exception as e:
