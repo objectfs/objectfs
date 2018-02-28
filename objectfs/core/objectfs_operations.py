@@ -42,7 +42,7 @@ FS_FILE_NAME_LENGTH = 255
 
 class ObjectFsOperations(llfuse.Operations):
 
-    def __init__(self, fs_name, cache_flag=True):
+    def __init__(self, fs_name, cache_flag=True, multipart_flag=False):
         """Setup the filesystem"""
         super(ObjectFsOperations, self).__init__()
         self._fs_name = fs_name
@@ -58,6 +58,8 @@ class ObjectFsOperations(llfuse.Operations):
         self._cache_queue = CacheQueue(self.fs_name)
         # cache flag
         self._cache_flag = cache_flag
+        # multi part flag
+        self._multipart_flag = multipart_flag
     
     @property
     def fs_name(self):
@@ -179,10 +181,10 @@ class ObjectFsOperations(llfuse.Operations):
         self._meta_store.get_inode(inode_id).open_count += 1
         # increment lookup counter when we open file
         # self._meta_store.get_inode(inode_id).lookup_count += 1
-        # if self._cache_flag:
-            # if self._cache_store.exists_inode(inode_id) is False:
-                # data = self._data_store.get_dnode(inode_id)
-                # self._cache_store.put_inode(inode_id, data)
+        if self._cache_flag and not self._multipart_flag:
+            if self._cache_store.exists_inode(inode_id) is False:
+                data = self._data_store.get_dnode(inode_id)
+                self._cache_store.put_inode(inode_id, data)
         return inode_id
     
     def create(self, parent_inode_id, name, mode, flags, ctx):
@@ -300,6 +302,12 @@ class ObjectFsOperations(llfuse.Operations):
         # inode = self._meta_store.get_inode(inode_id)
         # fetch object from object-store and read object
         if self._cache_flag:
+            data = self._cache_store.read_inode(inode_id, 0, off, off+size-1)
+            if data:
+                return data
+            else:
+                return b''
+        elif self._multipart_flag:
             # list_object_block_ids = range(off//settings.DATA_BLOCK_SIZE, (off+size)//settings.DATA_BLOCK_SIZE+0 if (off+size)%settings.DATA_BLOCK_SIZE==0 else (off+size)//settings.DATA_BLOCK_SIZE+1)
             # for object_block_id in list_object_block_ids:
                 # self._cache_queue.publish_work(inode_id, object_block_id)
@@ -345,6 +353,7 @@ class ObjectFsOperations(llfuse.Operations):
                 # return b''
         else:
             data = self._data_store.get_dnode(inode_id)
+
             if data is None:
                 return b''
             return data[off:off+size]
@@ -358,6 +367,11 @@ class ObjectFsOperations(llfuse.Operations):
         logger.debug("WRITE inode:{}, offset:{}, buffer length:{}".format(inode_id, offset, len(buf)))
         inode = self._meta_store.get_inode(inode_id)
         if self._cache_flag:
+            data_size = inode.size
+            self._cache_store.write_inode(inode_id, 0, offset, buf)
+            inode.size = max(data_size, len(buf)+offset)
+            self._super_block.incr_used_size(inode.size-data_size)
+        elif self._multipart_flag:
             object_block_id = offset // settings.DATA_BLOCK_SIZE
             new_offset = offset - (object_block_id*settings.DATA_BLOCK_SIZE)
             
@@ -389,30 +403,34 @@ class ObjectFsOperations(llfuse.Operations):
         
         # check if the file is open or not
         if inode.open_count == 0:
-            inode = self._meta_store.get_inode(inode_id)
-            # contains the list of jobs which we have launched
-            job_list = []
-            # containes the etag to part mapping for every part upload
-            etag_part_list = []
-            multi_part_obj = self._data_store.container.object(inode_id).initiate_multipart_upload()
-            # iterate over the size of the file and upload each object block individually
-            for object_block_id in range(inode.size // settings.DATA_BLOCK_SIZE,-1,-1):
-                # append the launched jobs for book-keeping
-                job_list.append(self._cache_queue.enqueue_multipart_upload_task(inode_id, object_block_id, multi_part_obj.id))
-            # wait for all jobs in the list to finish
-            while job_list:
-                for job in job_list:
-                    if job.status == 'finished':
-                        # save part etag mapping for completion
-                        etag_part_list.append({'ETag': job.result[0], 'PartNumber': job.result[1]})
-                        # remove job from list
-                        job_list.remove(job)
-            # complete the multipart upload
-            self._data_store.container.object(str(inode_id)).complete_multipart_upload(multi_part_obj.id, etag_part_list)
-
-            # data = self._cache_store.get_inode(inode_id)
-            # self._data_store.put_dnode(inode_id, data)
-            # self._cache_store.remove_inode(inode_id)
+            
+            if self._multipart_flag:
+              inode = self._meta_store.get_inode(inode_id)
+              # contains the list of jobs which we have launched
+              job_list = []
+              # containes the etag to part mapping for every part upload
+              etag_part_list = []
+              multi_part_obj = self._data_store.container.object(inode_id).initiate_multipart_upload()
+              # iterate over the size of the file and upload each object block individually
+              for object_block_id in range(inode.size // settings.DATA_BLOCK_SIZE,-1,-1):
+                  # append the launched jobs for book-keeping
+                  job_list.append(self._cache_queue.enqueue_multipart_upload_task(inode_id, object_block_id, multi_part_obj.id))
+              # wait for all jobs in the list to finish
+              while job_list:
+                  for job in job_list:
+                      if job.status == 'finished':
+                          # save part etag mapping for completion
+                          # import pdb; pdb.set_trace()
+                          etag_part_list.append({'ETag': job.result[0], 'PartNumber': job.result[1]})
+                          # remove job from list
+                          job_list.remove(job)
+              # complete the multipart upload
+              self._data_store.container.object(str(inode_id)).complete_multipart_upload(multi_part_obj.id, etag_part_list)
+              print("Finished upload")
+            else:
+                data = self._cache_store.get_inode(inode_id)
+                self._data_store.put_dnode(inode_id, data)
+                self._cache_store.remove_inode(inode_id)
             
             # # self._meta_store.get_inode(inode_id).nlink -= 1
             # # KL TODO not sure if this is correct
