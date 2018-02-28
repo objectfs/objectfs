@@ -72,7 +72,7 @@ class CacheStore(object):
         return NotImplemented
     
     @abstractmethod
-    def exists_inode(self, inode_id, object_block_id):
+    def exists_inode(self, inode_id, object_block_id=0):
         """Check if inode exists"""
         return NotImplemented
     
@@ -141,7 +141,7 @@ class RedisCacheStore(CacheStore):
             logger.error("Failed to remove inode:{} from cache".format(inode_id), exc_info=True)
             raise e
      
-    def exists_inode(self, inode_id, object_block_id):
+    def exists_inode(self, inode_id, object_block_id=0):
         """Check if inode exists"""
         try:
             logger.debug("Check if inode:{} exists".format(inode_id))
@@ -216,7 +216,7 @@ class FileCacheStore(CacheStore):
             print(e)
             raise e
 
-    def exists_inode(self, inode_id, object_block_id):
+    def exists_inode(self, inode_id, object_block_id=0):
         """Check if inode exists"""
         try:
             logger.debug("Check if inode:{} exists".format(inode_id))
