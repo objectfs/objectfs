@@ -73,7 +73,11 @@ class Settings(object):
 
     @property
     def S3_ENDPOINT(self):
-        return self.parser.get('s3-auth', 'endpoint')
+        end_point = self.parser.get('s3-auth', 'endpoint')
+        if end_point:
+          return end_point
+        else:
+          return None
 
     @property
     def AWS_ACCESS_KEY_ID(self):
