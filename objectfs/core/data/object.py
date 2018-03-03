@@ -176,20 +176,31 @@ class S3Object(DataObject):
     def put(self, contents):
         """Put an object"""
         try:
-            file_obj = cStringIO.StringIO()
-            file_obj.write(contents)
-            file_obj.seek(0)
-            response = self._object.upload_fileobj(file_obj)
-            # response = self._object.put(
-                    # ACL = 'private',
-                    # Body = contents,
-                    # StorageClass = 'Standard'
-            # )
+            # file_obj = cStringIO.StringIO()
+            # file_obj.write(contents)
+            # file_obj.seek(0)
+            # response = self._object.upload_fileobj(file_obj)
+            response = self._object.put(
+                    ACL = 'private',
+                    Body = contents,
+                    StorageClass = 'STANDARD'
+            )
             return response
         except Exception as e:
             logger.error("Failed to GET an object {} from S3 bucket {}".format(self.name, self.container.name), exc_info=True)
             raise e
     
+    def upload_fileobj(self, contents, config=None):
+        """Upload an object using the s3 upload file object"""
+        try:
+            file_obj = cStringIO.StringIO()
+            file_obj.write(contents)
+            file_obj.seek(0)
+            response = self._object.upload_fileobj(file_obj, Config=config)
+        except Exceptions as e:
+            print(e)
+            raise e
+
     def fetch_multipart(self, multipart_id):
         """Fetch a current multipart upload"""
         logger.debug("Fetching multipart for multipart {}".format(multipart_id))
@@ -250,7 +261,18 @@ class S3Object(DataObject):
         except Exception as e:
             print(e)
             raise e
-        
+    
+    def download_fileobj(self, config=None):
+        """Download S3 object using the download fileobj function"""
+
+        try:
+            file_obj = cStringIO.StringIO()
+            response = self._object.download_fileobj(file_obj, Config=config)
+            return file_obj.read()
+        except Exception as e:
+            print(e)
+            raise e
+  
     def post(self):
         """Update an object"""
         return NotImplemented
