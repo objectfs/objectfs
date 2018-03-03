@@ -427,10 +427,13 @@ class ObjectFsOperations(llfuse.Operations):
               # complete the multipart upload
               self._data_store.container.object(str(inode_id)).complete_multipart_upload(multi_part_obj.id, etag_part_list)
               print("Finished upload")
-            else:
+            elif self._cache_flag:
                 data = self._cache_store.get_inode(inode_id)
                 self._data_store.put_dnode(inode_id, data)
                 self._cache_store.remove_inode(inode_id)
+            else:
+              # do nothing since the writes are being directly written to object storage
+              pass
             
             # # self._meta_store.get_inode(inode_id).nlink -= 1
             # # KL TODO not sure if this is correct
