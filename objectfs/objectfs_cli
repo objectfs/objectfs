@@ -92,7 +92,9 @@ class ObjectFs(object):
             raise ValueError("File-system with name {} has not been intialized in the memory store.".format(self.parser_args.name))
         fuse_options = set(llfuse.default_options)
         fuse_options.add('fsname={}'.format(self.parser_args.name))
-        fuse_options.add('debug')
+        # turn on debug mode if flag is passed
+        if self.parser_args.debug:
+          fuse_options.add('debug')
         # fuse_options.add('max_read=131072')
         # fuse_options.add('max_write=262144')
         # fuse_options.add('async')
