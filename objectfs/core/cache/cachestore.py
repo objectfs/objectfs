@@ -67,7 +67,7 @@ class CacheStore(object):
         return NotImplemented
     
     @abstractmethod
-    def remove_inode(self, inode_id, object_block_id):
+    def remove_inode(self, inode_id, object_block_id=0):
         """Delete the inode from cache"""
         return NotImplemented
     
@@ -131,7 +131,7 @@ class RedisCacheStore(CacheStore):
             logger.error("Failed to get inode:{} from cache".format(inode_id), exc_info=True)
             raise e
 
-    def remove_inode(self, inode_id, object_block_id):
+    def remove_inode(self, inode_id, object_block_id=0):
         """Delete the inode from cache"""
         try:
             logger.debug("Remove inode:{} from cache".format(inode_id))
@@ -207,7 +207,7 @@ class FileCacheStore(CacheStore):
             print(e)
             raise e
     
-    def remove_inode(self, inode_id, object_block_id):
+    def remove_inode(self, inode_id, object_block_id=0):
         """Delete the inode from cache"""
         try:
             logger.debug("Remove inode:{} from cache".format(inode_id))
