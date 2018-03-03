@@ -20,6 +20,7 @@ import os
 import argparse
 import time
 import multiprocessing
+import boto3.s3.transfer as transfer
 from objectfs.core.data.objectstore import ObjectStore
 import csv
 
@@ -82,7 +83,40 @@ class ObjectStoreBenchmark(object):
         print("ITER:{}, TIME:{}".format(iter_num, end_time-start_time))
         self.write_csv([end_time-start_time])
         time.sleep(5)
+    
+    def multipart_download(self, iter_num):
+        """Multi-part download"""
+        
+        block_size = (self.parse_args.size*1024*1024)/self.parse_args.num
+        config = transfer.TransferConfig(multipart_threshold = 1, 
+                                max_concurrency = self.parse_args.num,
+                                multipart_chunksize = block_size,
+                                max_io_queue = 1000,
+                                io_chunksize = block_size,
+                                use_threads = True)
+        start_time = time.time()
+        self.data_store.container.object(self.parse_args.object_name+str(iter_num)).download_fileobj(config=config)
+        end_time = time.time()
+        print("ITER:{}, TIME:{}".format(iter_num, end_time-start_time))
+        self.write_csv([end_time-start_time])
+    
+    def multipart_upload(self, iter_num):
+        """Multi-part upload"""
 
+        block_size = (self.parse_args.size*1024*1024)/self.parse_args.num
+        data = self.read_input_file()
+        config = transfer.TransferConfig(multipart_threshold = 1, 
+                                max_concurrency = self.parse_args.num,
+                                multipart_chunksize = block_size,
+                                max_io_queue = 1000,
+                                io_chunksize = block_size,
+                                use_threads = True)
+        start_time = time.time()
+        self.data_store.container.object(self.parse_args.object_name+str(iter_num)).upload_fileobj(data, config=config)
+        end_time = time.time()
+        print("ITER:{}, TIME:{}".format(iter_num, end_time-start_time))
+        self.write_csv([end_time-start_time])
+  
     def read_input_file(self):
         """Reading the input file"""
         input_file = open("{}".format(self.parse_args.size), 'r')
@@ -101,28 +135,33 @@ class ObjectStoreBenchmark(object):
         parser = argparse.ArgumentParser(description='Object Store benchmark utils')
         # parser.add_argument('server_url', type=str, help='Server URL to run the benchmark')
         parser.add_argument('-i', '--iter', type=int, default=NUM_ITER, help='Iterations to run for the test. Default:{}'.format(NUM_ITER)) 
-        parser.add_argument('-n', '--num', type=int, default=NUM_PROC, help='Processes to run for the test. Default:{}'.format(NUM_PROC)) 
         parser.add_argument('-b', '--bucket', type=str, default=BUCKET_NAME, help='Bucket name. Default:{}'.format(BUCKET_NAME)) 
+        parser.add_argument('-s', '--size', type=int, default=FILE_SIZE, help='Size of files to read and write. Default:{}'.format(FILE_SIZE))
+        parser.add_argument('object_name', type=str, help='Object name to run the test against')
         sub_parsers = parser.add_subparsers(help='commands')
 
         # read objects
         read_parser = sub_parsers.add_parser('read', help='Run and read workload')
-        read_parser.add_argument('object_name', type=str, help='Object name to run the test against')
-        read_parser.add_argument('-s', '--size', type=int, default=FILE_SIZE, help='Size of files to read and write. Default:{}'.format(FILE_SIZE))
         read_parser.set_defaults(func=self.read)
         
         # write objects
         write_parser = sub_parsers.add_parser('write', help='Run the write workload')
-        write_parser.add_argument('object_name', type=str, help='Object name to run the test against')
-        write_parser.add_argument('-s', '--size', type=int, default=FILE_SIZE, help='Size of files to read and write. Default:{}'.format(FILE_SIZE))
         write_parser.set_defaults(func=self.write)
         
         # rename objects
         rename_parser = sub_parsers.add_parser('rename', help='Run the rename workload')
-        rename_parser.add_argument('object_name', type=str, help='Object name to run the test against')
-        rename_parser.add_argument('-s', '--size', type=int, default=FILE_SIZE, help='Size of files to read and write. Default:{}'.format(FILE_SIZE))
         rename_parser.set_defaults(func=self.rename)
 
+        # multipart download
+        download_parser = sub_parsers.add_parser('download', help='Run the multipart download')
+        download_parser.add_argument('-n', '--num', type=int, default=NUM_PROC, help='Processes to run for the test. Default:{}'.format(NUM_PROC)) 
+        download_parser.set_defaults(func=self.multipart_download)
+        
+        # multipart upload
+        upload_parser = sub_parsers.add_parser('upload', help='Run the multipart upload')
+        upload_parser.add_argument('-n', '--num', type=int, default=NUM_PROC, help='Processes to run for the test. Default:{}'.format(NUM_PROC)) 
+        upload_parser.set_defaults(func=self.multipart_upload)
+        
         return parser.parse_args()
 
 def main():
