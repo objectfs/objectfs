@@ -25,6 +25,7 @@ addons:
 before_install:
   - docker run -v ~/ --name swift_data busybox
   - docker run -d --restart=always -p 12345:8080 --volumes-from swift_data -t morrisjobke/docker-swift-onlyone
+  - sudo mkdir /var/log/objectfs
 
 install: "sudo pip install ."
 
