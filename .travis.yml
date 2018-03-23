@@ -1,0 +1,30 @@
+sudo: required
+
+language: python
+
+python:
+  - :2.7"
+
+notifications:
+  email: false
+
+services:
+  - redis-server
+  - docker
+
+addons:
+  apt:
+    packages:
+      - pkg-config
+      - libattr1-dev
+      - libfuse-dev
+
+install: "pip install ."
+
+cache:
+  - pip
+  - apt
+
+script:
+  - cd objectfs/tests/
+  - pytest
