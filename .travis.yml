@@ -19,6 +19,10 @@ addons:
       - libattr1-dev
       - libfuse-dev
 
+before_install:
+  - docker run -v ~/ --name swift_data busybox
+  - docker run -d --restart=always -p 12345:8080 --volumes-from swift_data -t morrisjobke/docker-swift-onlyone
+
 install: "pip install ."
 
 cache:
