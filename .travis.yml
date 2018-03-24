@@ -26,6 +26,7 @@ addons:
 before_install:
   - gem install fakes3
   - nohup fakes3 -p 4567 --root ~/&
+  - docker run -v ~/ --name swift_data busybox
   - docker run -d --restart=always -p 8080:8080 --volumes-from swift_data -t morrisjobke/docker-swift-onlyone
   - swift -A http://127.0.0.1:8080/auth/v1.0 -U test:tester -K testing stat
   - sudo mkdir /var/log/objectfs
