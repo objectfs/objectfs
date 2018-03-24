@@ -47,22 +47,22 @@ class CacheStore(object):
             raise e
 
     @abstractmethod
-    def write_inode(self, inode_id, object_block_id, offset, buf):
+    def write_inode(self, inode_id, offset, buf, object_block_id=0):
         """Write an inode to cache"""
         return NotImplemented
 
     @abstractmethod
-    def read_inode(self, inode_id, object_block_id, offset, size):
+    def read_inode(self, inode_id, offset, size, object_block_id=0):
         """Read an inode from cache"""
         return NotImplemented
     
     @abstractmethod
-    def put_inode(self, inode_id, object_block_id, data):
+    def put_inode(self, inode_id, data, object_block_id=0):
         """Put an inode inside cache"""
         return NotImplemented
     
     @abstractmethod
-    def get_inode(self, inode_id, object_block_id):
+    def get_inode(self, inode_id, object_block_id=0):
         """Get an inode from the cache"""
         return NotImplemented
     
@@ -91,7 +91,7 @@ class RedisCacheStore(CacheStore):
     def _cache_key(self, inode_id, object_block_id):
         return '{}{}{}{}{}{}{}'.format(self._fs_name, FS_DELIMITER, 'data', FS_DELIMITER, inode_id, FS_DELIMITER, object_block_id)
 
-    def write_inode(self, inode_id, object_block_id, offset, buf):
+    def write_inode(self, inode_id, offset, buf, object_block_id=0):
         """Write an inode to cache"""
         try:
             logger.debug("Write inode:{} to cache at offset:{},length:{}".format(inode_id, offset, len(buf)))
@@ -101,7 +101,7 @@ class RedisCacheStore(CacheStore):
             logger.error("Failed to write inode:{} to cache at offset:{},length:{}".format(inode_id, offset, len(buf)), exc_info=True)
             raise e
     
-    def read_inode(self, inode_id, object_block_id, offset, size):
+    def read_inode(self, inode_id, offset, size, object_block_id=0):
         """Read an inode from cache"""
         try:
             logger.debug("Read inode:{} from cache with offset:{},size:{}".format(inode_id, offset, size))
@@ -111,7 +111,7 @@ class RedisCacheStore(CacheStore):
             logger.error("Failed to read inode:{} from cache with offset:{},size:{}".format(inode_id, offset, size), exc_info=True)
             raise e
     
-    def put_inode(self, inode_id, object_block_id, data):
+    def put_inode(self, inode_id, data, object_block_id=0):
         """Put an inode inside cache"""
         try:
             logger.debug("Put inode:{} into cache".format(inode_id))
@@ -121,7 +121,7 @@ class RedisCacheStore(CacheStore):
             logger.error("Failed to put inode:{} into cache".format(inode_id), exc_info=True)
             raise e
     
-    def get_inode(self, inode_id, object_block_id):
+    def get_inode(self, inode_id, object_block_id=0):
         """Get an inode from the cache"""
         try:
             logger.debug("Get inode:{} from cache".format(inode_id))
@@ -196,7 +196,7 @@ class FileCacheStore(CacheStore):
             print(e)
             raise e
 
-    def put_inode(self, inode_id, object_block_id, data):
+    def put_inode(self, inode_id, data, object_block_id=0):
         """Put an inode inside cache"""
         try:
             logger.debug("Put inode:{} into cache".format(inode_id))
