@@ -28,7 +28,7 @@ before_install:
   - nohup fakes3 -p 4567 --root ~/&
   - docker run -v ~/ --name swift_data busybox
   - docker run -d --restart=always -p 8080:8080 --volumes-from swift_data -t morrisjobke/docker-swift-onlyone
-  - swift -A http://127.0.0.1:12345/auth/v1.0 -U travis_user -K travis_password stat
+  - swift -A http://127.0.0.1:8080/auth/v1.0 -U travis_user -K travis_password stat
   - sudo mkdir /var/log/objectfs
   - sudo chown -R $USER /var/log/objectfs
 
