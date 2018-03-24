@@ -27,9 +27,11 @@ setup(
         name = 'objectfs',
         version = __version__,
         description = 'A file system with the power of an object store',
-        url = 'https://github.ibm.com/Kunal-Lillaney/objectfs.git',
+        url = 'https://github.com/objectfs/objectfs',
         author = 'Kunal Lillaney',
-        author_email = 'Kunal.Lillaney@ibm.com',
+        author_email = 'lillaney@jhu.edu',
+        maintainer = 'Kunal Lillaney',
+        maintainer_email = 'lillaney@jhu.edu',
         license = 'Apache 2.0',
         scripts = ['objectfs/objectfs_cli'],
         data_files = [
@@ -41,6 +43,7 @@ setup(
             'redis',
             'boto3',
             'llfuse',
-            'python-swiftclient'
+            'python-swiftclient',
+            'google-cloud-storage'
         ]
 )

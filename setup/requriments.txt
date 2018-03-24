@@ -3,3 +3,4 @@ boto3
 redis
 llfuse
 configparser
+google-cloud-storage
