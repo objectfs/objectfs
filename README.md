@@ -2,6 +2,9 @@
 
 A file system with the power of an object store.
 
+[![Hex.pm](https://img.shields.io/hexpm/l/plug.svg)](http://www.apache.org/licenses/LICENSE-2.0.html)
+[![Build Status](https://travis-ci.org/objectfs/objectfs.svg?branch=master)](https://travis-ci.org/objectfs/objectfs)
+
 ## Usage
 * Make file-system
 ```console
