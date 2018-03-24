@@ -23,6 +23,8 @@ addons:
       - libfuse-dev
 
 before_install:
+  - gem install fakes3
+  - nohup fakes3 -p 4567 --root ~/&
   - docker run -v ~/ --name swift_data busybox
   - docker run -d --restart=always -p 8080:8080 --volumes-from swift_data -t morrisjobke/docker-swift-onlyone
   - sudo mkdir /var/log/objectfs
