@@ -18,15 +18,22 @@ from os import path
 from codecs import open
 from objectfs import __version__
 
-current_directory = path.abspath(path.dirname(__file__))
+ROOT = path.abspath(path.dirname(__file__))
 
-# with open(path.join(current_directory, 'setup/requirements.txt'), encoding='utf-8') as file_handle:
-    # all_requirements = file_handle.split('\n')
+# read the requirements file
+with open(path.join(ROOT, 'setup', 'requirements.txt'), encoding='utf-8') as file_handle:
+    install_requires = file_handle.read().split('\n')
 
+# read the long description readme file
+with open(path.join(ROOT, 'README.md'), encoding='utf-8') as file_handle:
+    long_description = file_handle.read()
+
+# run setup
 setup(
         name = 'objectfs',
         version = __version__,
         description = 'A file system with the power of an object store',
+        long_description = long_description,
         url = 'https://github.com/objectfs/objectfs',
         author = 'Kunal Lillaney',
         author_email = 'lillaney@jhu.edu',
@@ -39,11 +46,5 @@ setup(
         ],
         packages = find_packages(exclude=['docs', 'tests', 'benchmark', 'util']),
         include_package_data = True,
-        install_requires = [
-            'redis',
-            'boto3',
-            'llfuse',
-            'python-swiftclient',
-            'google-cloud-storage'
-        ]
+        install_requires = install_requires
 )

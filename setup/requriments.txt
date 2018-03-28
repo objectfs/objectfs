@@ -1,6 +1,5 @@
-python-swiftclient
+llfuse
 boto3
 redis
-llfuse
-configparser
+python-swiftclient
 google-cloud-storage
