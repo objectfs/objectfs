@@ -87,6 +87,10 @@ class Settings(object):
     def AWS_SECRET_ACCESS_KEY(self):
         return self.parser.get('s3-auth', 'aws_secret_access_key')
     
+    @property
+    def GOOGLE_SERVICE_ACCOUNT_JSON_PATH(self):
+      return self.parser.get('google-auth', 'service_account_json_path')
+
     @property 
     def OBJECT_STORE(self):
         return self.parser.get('store', 'name')
