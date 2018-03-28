@@ -15,8 +15,8 @@
 
 from __future__ import absolute_import, print_function
 from abc import abstractmethod
-from objectfs.core.data.connection import SwiftConnection, S3Connection
-from objectfs.core.data.container import SwiftContainer, S3Container
+from objectfs.core.data.connection import SwiftConnection, S3Connection, GoogleConnection
+from objectfs.core.data.container import SwiftContainer, S3Container, GoogleContainer
 from objectfs.settings import Settings
 settings = Settings()
 import logging
@@ -37,6 +37,8 @@ class ObjectStore(object):
             return SwiftStore
         elif object_store == 'S3':
             return S3Store
+        elif object_store == 'Google':
+            return GoogleStore
         else:
             logging.error('Object store {} not yet supported'.format(settings.OBJECT_STORE), exec_func=True)
             raise
@@ -95,3 +97,13 @@ class S3Store(ObjectStore):
     @staticmethod
     def connection():
         return S3Connection
+
+class GoogleStore(ObjectStore):
+
+    @staticmethod
+    def load_container():
+        return GoogleContainer
+
+    @staticmethod
+    def connection():
+        return GoogleConnection

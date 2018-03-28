@@ -17,6 +17,7 @@ from __future__ import absolute_import, print_function
 from abc import ABCMeta, abstractmethod
 import six
 import botocore
+import google.cloud.storage as gcstorage
 import cStringIO
 from swiftclient.exceptions import ClientException
 from objectfs.settings import Settings
@@ -308,3 +309,66 @@ class S3Object(DataObject):
         except Exception as e:
             print(e)
             raise e
+
+class GoogleObject(DataObject):
+
+    def __init__(self, container_obj, object_name, store_connection):
+        super(GoogleObject, self).__init__(container_obj, object_name, store_connection)
+        self._object = gcstorage.blob.Blob(str(self.name), self.container._bucket)
+    
+    def get(self, object_block_id=None):
+        """Get an object"""
+        try:
+          response = self._object.download_as_string()
+          return response
+        except Exception as e:
+          print(e)
+          raise e
+    
+    def put(self, contents):
+        """Put an object"""
+        try:
+          response = self._object.upload_from_string(contents)
+          return response
+        except:
+          print(e)
+          raise e
+    
+    def initiate_multipart_upload(self):
+        """Initiate a multipart upload"""
+        return NotImplemented
+    
+    def complete_multipart_upload(self, multipart_id, etag_part_list):
+        """Complete a multipart upload"""
+        return NotImplemented
+    
+    def fetch_multipart(self, multipart_id):
+        """Fetch a current multipart upload"""
+        return NotImplemented
+    
+    def post(self):
+        """Update an object"""
+        return NotImplemented
+
+    def delete(self):
+        """Delete an object"""
+        try:
+            response = self._object.delete()
+            return response
+        except Exception as e:
+            print (e)
+            raise e
+    
+    def head(self):
+        """Check if an object exists or not"""
+        try:
+            response = self._object.exists()
+            return response
+        except Exception as e:
+            print(e)
+            raise e
+    
+    def move(self, new_object_name):
+        """Renames an object. This method copies the object into the new object name and 
+        then delets the old copy"""
+        return NotImplemented

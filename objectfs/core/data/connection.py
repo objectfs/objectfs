@@ -15,6 +15,8 @@
 
 from __future__ import print_function, absolute_import
 from swiftclient.client import Connection
+import google.cloud.storage as gcstorage
+import google.auth.compute_engine as gcengine
 import boto3
 from objectfs.settings import Settings
 settings = Settings()
@@ -32,6 +34,8 @@ class StoreConnection(object):
             return SwiftConnection()
         elif settings.OBJECT_STORE == 'S3':
             return S3Connection()
+        elif settings.OBJECT_STORE == 'Google':
+            return GoogleConnection()
         else:
             logger.error('Object store {} not yet supported'.format(settings.OBJECT_STORE), exec_info=True)
             raise
@@ -45,3 +49,8 @@ class S3Connection(StoreConnection):
     
     def __init__(self):
         self.conn = boto3.resource('s3', region_name=settings.S3_AWS_REGION, endpoint_url=settings.S3_ENDPOINT, aws_access_key_id=settings.AWS_ACCESS_KEY_ID, aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY)
+
+class GoogleConnection(StoreConnection):
+
+    def __init__(self):
+        self.conn = gcstorage.client.Client.from_service_account_json(settings.GOOGLE_SERVICE_ACCOUNT_JSON_PATH)

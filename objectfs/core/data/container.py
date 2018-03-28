@@ -17,9 +17,10 @@ from __future__ import absolute_import, print_function
 from abc import ABCMeta, abstractmethod
 import six
 import boto3
+import google.cloud.storage as gcstorage
 from swiftclient.exceptions import ClientException
-from objectfs.core.data.connection import SwiftConnection, S3Connection
-from objectfs.core.data.object import SwiftObject, S3Object
+from objectfs.core.data.connection import SwiftConnection, S3Connection, GoogleConnection
+from objectfs.core.data.object import SwiftObject, S3Object, GoogleObject
 import logging
 logger = logging.getLogger(__name__)
 
@@ -186,3 +187,51 @@ class S3Container(Container):
         connection = S3Connection()
         for bucket in list(connection.conn.buckets.all()):
             yield S3Container(bucket.name, S3Connection())
+
+class GoogleContainer(Container):
+
+    def __init__(self, container_name, store_connection):
+        super(GoogleContainer, self).__init__(container_name, store_connection)
+        self._bucket = gcstorage.Bucket(self._connection.conn, self.name)
+    
+    def create(self):
+        """Create container"""
+        try:
+            response = self._bucket.create()
+        except Exception as e:
+            print(e)
+            raise e
+
+    def delete(self):
+        """Delete container"""
+        try:
+            response = self._bucket.delete()
+            return response
+        except Exception as e:
+            print(e)
+            raise e
+    
+    def post(self):
+        """Update a container"""
+        return NotImplemented
+    
+    def object(self, object_name):
+        return GoogleObject(self, object_name, GoogleConnection())
+    
+    def list_objects(self, prefix=None, full_listing=False):
+        """Return list of objects"""
+        for blob in self._bucket.list_blobs():
+            yield (self.object(blob.name))
+    
+    def delete_all_objects(self):
+        """Delete all objects"""
+        object_list = self.list_objects()
+        self._bucket.delete_blobs(object_list)
+    
+    @staticmethod
+    def list():
+        """List containers"""
+        connection = GoogleConnection()
+        for bucket in connection.conn.list_buckets():
+            yield GoogleContainer(bucket.name, GoogleConnection())
+
