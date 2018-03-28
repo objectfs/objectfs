@@ -26,9 +26,7 @@ from config import OBJECT_STORE_LIST
 def test_container(object_store):
     container = Container_Test(object_store)
     container.test_create_container()
-    # skipping S3 delete test for now
-    if object_store == 'Swift':
-        container.test_delete_container()
+    container.test_delete_container()
 
 class Container_Test:
 
