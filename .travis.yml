@@ -11,6 +11,9 @@ virtualenv:
 notifications:
   email: false
 
+git:
+  lfs_skip_smudge: true
+
 services:
   - redis-server
   - docker
