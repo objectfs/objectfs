@@ -125,7 +125,8 @@ class SuperBlock(object):
 
     @property
     def total_size(self):
-        return self._meta_store.get_superblock_key(self._total_size)
+        total_size = self._meta_store.get_superblock_key(self._total_size)
+        return total_size if total_size else 0
 
     @total_size.setter
     def total_size(self, value):
@@ -134,7 +135,8 @@ class SuperBlock(object):
 
     @property
     def used_size(self):
-        return self._meta_store.get_superblock_key(self._used_size)
+        used_size = self._meta_store.get_superblock_key(self._used_size)
+        return used_size if used_size else 0
     
     @used_size.setter
     def used_size(self, value):
