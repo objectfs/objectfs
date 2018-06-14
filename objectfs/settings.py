@@ -55,6 +55,10 @@ class Settings(object):
         return
         # BASE_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), self.parser.get('path', 'BASE_PATH')))
     
+    def _convert_list(self, values_list):
+        """Converts the values to a list"""
+        return [value.strip() for value in values_list.split(',')]
+
     @property
     def SWIFT_AUTH_USER(self):
         return self.parser.get('swift-auth', 'user')
@@ -96,8 +100,18 @@ class Settings(object):
         return self.parser.get('store', 'name')
     
     @property
+    def OBJECT_STORES_SUPPORTED(self):
+        """List of supported object stores"""
+        return self._convert_list(self.parser.get('store', 'object_stores_supported'))
+
+    @property
     def CACHE_STORE(self):
         return self.parser.get('cache', 'name')
+    
+    @property
+    def CACHE_STORES_SUPPORTED(self):
+        """List of supported cache stores"""
+        return self._convert_list(self.parser.get('cache', 'cache_stores_supported'))
 
     @property
     def NUM_THREADS(self):
@@ -106,6 +120,14 @@ class Settings(object):
     @property
     def DATA_BLOCK_SIZE(self):
         return self.parser.getint('store', 'block_size')
+    
+    @property
+    def FS_OPERATION_MODES_SUPPORTED(self):
+        return self._convert_list(self.parser.get('file-system-mode', 'operation_modes_supported'))
+
+    @property
+    def FS_OPERATION_MODE(self):
+        return self.parser.get('file-system-mode', 'operation_mode')
 
     @property
     def FS_MOUNT_POINT(self):
