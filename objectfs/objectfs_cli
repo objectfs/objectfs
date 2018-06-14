@@ -19,9 +19,9 @@
 from __future__ import absolute_import, print_function
 import argparse
 import llfuse
-from objectfs.core.objectfs_operations import ObjectFsOperations
+from objectfs.core.objectfs_operations import ObjectFsOperationsFactory
 from objectfs.core.metadata.superblock import SuperBlock
-from objectfs.core.data.objectstore import ObjectStore
+from objectfs.core.data.objectstore import ObjectStoreFactory
 from objectfs.core.metadata.metastore import MetaStore
 from objectfs.settings import Settings
 settings = Settings()
@@ -48,7 +48,7 @@ class ObjectFs(object):
     
     def _check_file_system_exists(self):
         """Check if a file-system exists"""
-        for container_item in ObjectStore.load(self.parser_args.name).load_container().list():
+        for container_item in ObjectStoreFactory.create_store(self.parser_args.name).load_container().list():
             if container_item.name == self.parser_args.name:
                 return True
         return False
@@ -69,9 +69,9 @@ class ObjectFs(object):
         super_block.total_size = self.parser_args.size
         super_block.block_size = self.parser_args.block_size
         # create the container
-        ObjectStore.load(self.parser_args.name).container.create()
+        ObjectStoreFactory.create_store(self.parser_args.name).container.create()
         # setup root node
-        object_fs_operations = ObjectFsOperations(self.parser_args.name)
+        object_fs_operations = ObjectFsOperationsFactory.create_operations(self.parser_args.name)
         object_fs_operations.setup_root_inode()
         # print message
         print("File-system {} made".format(self.parser_args.name))
@@ -81,7 +81,7 @@ class ObjectFs(object):
         """Mount an objectfs file-system"""
         # check if container was created
         container_list = []
-        for container_item in ObjectStore.get_store().load_container().list():
+        for container_item in ObjectStoreFactory.create_store(None).load_container().list():
             container_list.append(container_item.name)
         if self.parser_args.name not in container_list:
             logger.error("File-system with name {} has not been intialized in the object store.".format(self.parser_args.name))
@@ -102,7 +102,7 @@ class ObjectFs(object):
         # fuse_options.add('auto_cache')
         fuse_options.add('nosuid')
         fuse_options.discard('default_permissions')
-        object_fs_operations = ObjectFsOperations(self.parser_args.name, cache_flag=self.parser_args.cache, multipart_flag=self.parser_args.multipart)
+        object_fs_operations = ObjectFsOperationsFactory.create_operations(self.parser_args.name, fs_mode=self.parser_args.fs_mode)
         logger.info("File-system {} mounted at {}".format(self.parser_args.name, self.parser_args.mount_point))
         llfuse.init(object_fs_operations, self.parser_args.mount_point, fuse_options)
         # print message
@@ -121,7 +121,7 @@ class ObjectFs(object):
         """List all objectfs file-systems for this user"""
         # KL TODO currently we list all file-systems without any ACL
         print("Name \t Used Size(MB) \t Total Size(MB) \n")
-        for container_item in ObjectStore.get_store().load_container().list():
+        for container_item in ObjectStoreFactory.create_store(None).load_container().list():
             super_block = SuperBlock(container_item.name)
             size_divider = 1024*1024
             print("{} \t {} \t {} \n".format(container_item.name, super_block.used_size/size_divider, super_block.total_size/size_divider))
@@ -138,7 +138,7 @@ class ObjectFs(object):
         # delete all the inodes
         MetaStore.load(self.parser_args.name)._clean_store()
         # delete the container and all objects within it
-        ObjectStore.load(self.parser_args.name).container.delete()
+        ObjectStoreFactory.create_store(self.parser_args.name).container.delete()
         # print message
         logger.info("File-system {} delete.".format(self.parser_args.name))
         print("File-system {} delete.".format(self.parser_args.name))
@@ -170,6 +170,8 @@ class ObjectFs(object):
         make_parser.add_argument('-s', '--size', type=int, default=settings.FS_SIZE, help='Maximum possible size in Bytes. Default: {} Bytes'.format(settings.FS_SIZE))
         make_parser.add_argument('-i', '--num_nodes', type=int, default=settings.FS_NUM_INODES, help='Number of maximum possible Inodes. Default: {}'.format(settings.FS_NUM_INODES))
         make_parser.add_argument('-b', '--block_size', type=int, default=settings.FS_BLOCK_SIZE, help='Block size in Bytes. Default: {} Bytes'.format(settings.FS_BLOCK_SIZE))
+        make_parser.add_argument('-o', '--object_store', type=str, default=settings.OBJECT_STORE, choices=settings.OBJECT_STORES_SUPPORTED, help='Object store. Default:'.format(settings.OBJECT_STORE))
+        make_parser.add_argument('-c', '--cache_store', type=str, default=settings.CACHE_STORE, choices=settings.CACHE_STORES_SUPPORTED, help='Cache store. Default:'.format(settings.CACHE_STORE))
         make_parser.set_defaults(func=self.make_filesystem)
 
         # mount file-system
@@ -177,8 +179,7 @@ class ObjectFs(object):
         mount_parser.add_argument('name', type=str, help='Name of ObjectFS')
         mount_parser.add_argument('mount_point', type=str, help='Mount point for ObjectFS')
         mount_parser.add_argument('-n', '--num_threads', type=int, default=settings.FS_NUM_THREADS, help='Number of threads. Default: {}'.format(settings.FS_NUM_THREADS))
-        mount_parser.add_argument('--cache', action='store_true', default=False, help='Turn on Caching. Default: {}'.format('False'))
-        mount_parser.add_argument('--multipart', action='store_true', default=False, help='Turn on Multi-part. Default: {}'.format('False'))
+        mount_parser.add_argument('-m', '--fs_mode', default=settings.FS_OPERATION_MODE, choices=settings.FS_OPERATION_MODES_SUPPORTED, help='File system mode: {}. Default: {}'.format(settings.FS_OPERATION_MODES_SUPPORTED, settings.FS_OPERATION_MODE))
         mount_parser.set_defaults(func=self.mount_filesystem)
 
         # list file-system
