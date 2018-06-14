@@ -25,9 +25,9 @@ import math
 from time import time
 from llfuse import FUSEError
 from argparse import ArgumentParser
-from objectfs.core.data.objectstore import ObjectStore
+from objectfs.core.data.objectstore import ObjectStoreFactory
 from objectfs.core.metadata.metastore import MetaStore
-from objectfs.core.cache.cachestore import CacheStore
+from objectfs.core.cache.cachestore import CacheStoreFactory
 from objectfs.core.metadata.inode import Inode
 from objectfs.core.metadata.superblock import SuperBlock
 from objectfs.core.cache.cachequeue import CacheQueue
@@ -41,8 +41,8 @@ DIR_MODE = (stat.S_IFDIR | 0777)
 FS_FILE_NAME_LENGTH = 255
 
 class ObjectFsOperations(llfuse.Operations):
-
-    def __init__(self, fs_name, cache_flag=True, multipart_flag=False):
+    
+    def __init__(self, fs_name):
         """Setup the filesystem"""
         super(ObjectFsOperations, self).__init__()
         self._fs_name = fs_name
@@ -51,16 +51,12 @@ class ObjectFsOperations(llfuse.Operations):
         # loading the superblock
         self._super_block = SuperBlock(self.fs_name)
         # loading the data-store aka object-store
-        self._data_store = ObjectStore.load(self.fs_name)
+        self._data_store = ObjectStoreFactory.create_store(self.fs_name)
         # loading the cache store
-        self._cache_store = CacheStore.load(self.fs_name)
+        self._cache_store = CacheStoreFactory.create_store(self.fs_name)
         # load the cache queue
         self._cache_queue = CacheQueue(self.fs_name)
-        # cache flag
-        self._cache_flag = cache_flag
-        # multi part flag
-        self._multipart_flag = multipart_flag
-    
+
     @property
     def fs_name(self):
         return self._fs_name
@@ -113,26 +109,6 @@ class ObjectFsOperations(llfuse.Operations):
         """Change the attributes of an inode"""
         logger.debug("SETATTR inode:{}".format(inode_id))
         inode = self._meta_store.get_inode(inode_id)
-        if fields.update_size:
-            if self._cache_flag:
-                # KL TODO this needs to be fixed
-                data = self._cache_store.get_inode(inode_id, 0)
-            else:
-                data = self._data_store.get_dnode(inode_id)
-            if data is None:
-                data = b''
-            if len(data) < attr.st_size:
-                data = data + b'\0' * (attr.st_size - len(data))
-            else:
-                data = data[:attr.st_size]
-            # update size of the file in inode-map
-            inode.size = attr.st_size
-            # update the object in the object store
-            if self._cache_flag:
-                # KL TODO fix this as well for new struct
-                self._cache_store.put_inode(inode_id, 0, data)
-            else:
-                self._data_store.put_dnode(inode_id, data)
         
         if fields.update_mode:
             inode.mode = attr.st_mode
@@ -160,7 +136,6 @@ class ObjectFsOperations(llfuse.Operations):
         if name == '.':
             inode_id = parent_inode_id
         elif name == '..':
-            # inode_id = self._meta_store.get_inode(parent_inode_id).parent_inode_id
             inode_id = self._meta_store.get_inode(parent_inode_id).id
         else: 
             inode_id = self._meta_store.get_inode_id(parent_inode_id, name)
@@ -176,15 +151,12 @@ class ObjectFsOperations(llfuse.Operations):
         return inode_id
     
     def open(self, inode_id, flags, ctx):
+        """Open the file using inode id"""
         logger.debug("OPEN inode:{}".format(inode_id))
         # increment open counter when we open file
         self._meta_store.get_inode(inode_id).open_count += 1
         # increment lookup counter when we open file
         # self._meta_store.get_inode(inode_id).lookup_count += 1
-        if self._cache_flag and not self._multipart_flag:
-            if self._cache_store.exists_inode(inode_id) is False:
-                data = self._data_store.get_dnode(inode_id)
-                self._cache_store.put_inode(inode_id, data)
         return inode_id
     
     def create(self, parent_inode_id, name, mode, flags, ctx):
@@ -301,62 +273,6 @@ class ObjectFsOperations(llfuse.Operations):
         # fetching the inode for the object name
         # inode = self._meta_store.get_inode(inode_id)
         # fetch object from object-store and read object
-        if self._cache_flag:
-            data = self._cache_store.read_inode(inode_id, 0, off, off+size-1)
-            if data:
-                return data
-            else:
-                return b''
-        elif self._multipart_flag:
-            # list_object_block_ids = range(off//settings.DATA_BLOCK_SIZE, (off+size)//settings.DATA_BLOCK_SIZE+0 if (off+size)%settings.DATA_BLOCK_SIZE==0 else (off+size)//settings.DATA_BLOCK_SIZE+1)
-            # for object_block_id in list_object_block_ids:
-                # self._cache_queue.publish_work(inode_id, object_block_id)
-            # self._cache_queue.subscribe_reply()
-            # for (inode_id, object_block_id) in self._cache_queue.get_reply_message():
-                # list_object_block_ids.remove(object_block_id)
-                # if not list_object_block_ids:
-                    # break
-            # list_object_block_ids = range(off//settings.DATA_BLOCK_SIZE, (off+size)//settings.DATA_BLOCK_SIZE+0 if (off+size)%settings.DATA_BLOCK_SIZE==0 else (off+size)//settings.DATA_BLOCK_SIZE+1)
-            # data = b''
-            # old_off = off
-            # for object_block_id in list_object_block_ids:
-                # data += self._cache_store.read_inode(inode_id, object_block_id, off%((object_block_id+1)*settings.DATA_BLOCK_SIZE), off%((object_block_id+1)*settings.DATA_BLOCK_SIZE)+(min(size, (object_block_id+1)*settings.DATA_BLOCK_SIZE))-1)
-                # off = (object_block_id+1)*settings.DATA_BLOCK_SIZE
-            inode = self._meta_store.get_inode(inode_id)
-            object_block_id = off // settings.DATA_BLOCK_SIZE
-            new_off = off - (object_block_id*settings.DATA_BLOCK_SIZE)
-            if off >= inode.size:
-                return b''
-            # check if object block exists in cache
-            if self._cache_store.exists_inode(inode_id, object_block_id):
-                data = self._cache_store.read_inode(inode_id, object_block_id, new_off, new_off+size-1)
-            else:
-                # enqueue a job to fetch the object block
-                job = self._cache_queue.enqueue_download_task(inode_id, object_block_id, new_off, size-1)
-                for i in range(object_block_id+1, inode.size/settings.DATA_BLOCK_SIZE, 1):
-                    self._cache_queue.enqueue_prefetch_task(inode_id, i)
-                while True:
-                    if job.status == 'finished':
-                        data = job.result
-                        break
-                    elif job.status == 'failed':
-                        break
-            if data:
-                return data
-            else:
-                return b''
-
-            # data = self._cache_store.read_inode(inode_id, off, off+size-1)
-            # if data:
-                # return data
-            # else:
-                # return b''
-        else:
-            data = self._data_store.get_dnode(inode_id)
-
-            if data is None:
-                return b''
-            return data[off:off+size]
     
     def readlink(self, inode_id, ctx):
         """Read the link for a file"""
@@ -365,82 +281,16 @@ class ObjectFsOperations(llfuse.Operations):
     def write(self, inode_id, offset, buf):
         """Write a file"""
         logger.debug("WRITE inode:{}, offset:{}, buffer length:{}".format(inode_id, offset, len(buf)))
-        inode = self._meta_store.get_inode(inode_id)
-        if self._cache_flag:
-            data_size = inode.size
-            self._cache_store.write_inode(inode_id, 0, offset, buf)
-            inode.size = max(data_size, len(buf)+offset)
-            self._super_block.incr_used_size(inode.size-data_size)
-        elif self._multipart_flag:
-            object_block_id = offset // settings.DATA_BLOCK_SIZE
-            new_offset = offset - (object_block_id*settings.DATA_BLOCK_SIZE)
-            
-            data_size = inode.size
-            self._cache_store.write_inode(inode_id, object_block_id, new_offset, buf)
-            inode.size = max(data_size, len(buf)+offset)
-            self._super_block.incr_used_size(inode.size-data_size)
-        else:
-            data = self._data_store.get_dnode(inode_id)
-            if data is None:
-                data = b''
-            if len(data)< offset:
-                data = data + b'\x00'*(offset-len(data)) + buf
-            else:
-                data = data[:offset] + buf + data[offset+len(buf):]
-            self._data_store.put_dnode(inode_id, data)
-            # update the used size
-            self._super_block.incr_used_size(len(data)-inode.size)
-            # update inode size
-            inode.size = len(data)
-        return len(buf)
 
     def release(self, inode_id):
         """Relase a file"""
         logger.debug("RELEASE inode:{}".format(inode_id))
-        # decrement inode open_count
-        inode = self._meta_store.get_inode(inode_id)
-        inode.open_count -= 1
-        
-        # check if the file is open or not
-        if inode.open_count == 0:
-            
-            if self._multipart_flag:
-              inode = self._meta_store.get_inode(inode_id)
-              # contains the list of jobs which we have launched
-              job_list = []
-              # containes the etag to part mapping for every part upload
-              etag_part_list = []
-              multi_part_obj = self._data_store.container.object(inode_id).initiate_multipart_upload()
-              # iterate over the size of the file and upload each object block individually
-              for object_block_id in range(inode.size // settings.DATA_BLOCK_SIZE,-1,-1):
-                  # append the launched jobs for book-keeping
-                  job_list.append(self._cache_queue.enqueue_multipart_upload_task(inode_id, object_block_id, multi_part_obj.id))
-              # wait for all jobs in the list to finish
-              while job_list:
-                  for job in job_list:
-                      if job.status == 'finished':
-                          # save part etag mapping for completion
-                          # import pdb; pdb.set_trace()
-                          etag_part_list.append({'ETag': job.result[0], 'PartNumber': job.result[1]})
-                          # remove job from list
-                          job_list.remove(job)
-              # complete the multipart upload
-              self._data_store.container.object(str(inode_id)).complete_multipart_upload(multi_part_obj.id, etag_part_list)
-              print("Finished upload")
-            elif self._cache_flag:
-                data = self._cache_store.get_inode(inode_id)
-                self._data_store.put_dnode(inode_id, data)
-                self._cache_store.remove_inode(inode_id)
-            else:
-              # do nothing since the writes are being directly written to object storage
-              pass
-            
-            # # self._meta_store.get_inode(inode_id).nlink -= 1
-            # # KL TODO not sure if this is correct
-            # # self._meta_store.clean_index(inode.parent_inode_id, inode.name)
-            # if self.getattr(inode_id).st_nlink == 0:
-                # self._meta_store.delete_inode(inode.id)
-                # # TODO remove from object-store??
+        # # self._meta_store.get_inode(inode_id).nlink -= 1
+        # # KL TODO not sure if this is correct
+        # # self._meta_store.clean_index(inode.parent_inode_id, inode.name)
+        # if self.getattr(inode_id).st_nlink == 0:
+            # self._meta_store.delete_inode(inode.id)
+            # # TODO remove from object-store??
     
     def link(self, inode_id, new_parent_inode_id, new_name, ctx):
         logger.debug("LINK inode:{}, new parent:{}, new name:{}".format(inode_id, new_parent_inode_id, new_name))
@@ -627,3 +477,210 @@ class ObjectFsOperations(llfuse.Operations):
 
     # def removexattr(self, inode_id, name, ctx):
         # return NotImplemented
+
+
+class ObjectFsOperationsNoCache(ObjectFsOperations):
+
+    def __init__(self, fs_name):
+        super(self.__class__, self).__init__(fs_name)
+
+    def setattr(self, inode_id, attr, fields, fh, ctx):
+        """Change the attributes of an inode"""
+        super(self.__class__, self).setattr(inode_id, attr, fields, fh, ctx)
+        if fields.update_size:
+            data = self._data_store.get_dnode(inode_id)
+            if data is None:
+                data = b''
+            if len(data) < attr.st_size:
+                data = data + b'\0' * (attr.st_size - len(data))
+            else:
+                data = data[:attr.st_size]
+            # update size of the file in inode-map
+            inode.size = attr.st_size
+            # update the object in the object store
+            self._data_store.put_dnode(inode_id, data)
+    
+    def read(self, inode_id, off, size):
+        """Read a file"""
+        super(self.__class__, self).read(inode_id, off, size)
+        data = self._data_store.get_dnode(inode_id)
+        if data is None:
+            return b''
+        return data[off:off+size]
+
+    def write(self, inode_id, offset, buf):
+        """Write a file"""
+        super(self.__class__, self).write(inode_id, offset, buf)
+        inode = self._meta_store.get_inode(inode_id)
+        data = self._data_store.get_dnode(inode_id)
+        if data is None:
+            data = b''
+        if len(data)< offset:
+            data = data + b'\x00'*(offset-len(data)) + buf
+        else:
+            data = data[:offset] + buf + data[offset+len(buf):]
+        self._data_store.put_dnode(inode_id, data)
+        # update the used size
+        self._super_block.incr_used_size(len(data)-inode.size)
+        # update inode size
+        inode.size = len(data)
+        return len(buf)
+
+class ObjectFsOperationsCache(ObjectFsOperations):
+
+    def __init__(self, fs_name):
+        super(self.__class__, self).__init__(fs_name) 
+    
+    def setattr(self, inode_id, attr, fields, fh, ctx):
+        """Change the attributes of an inode"""
+        super(self.__class__, self).setattr(inode_id, attr, fields, fh, ctx)
+        if fields.update_size:
+            # KL TODO this needs to be fixed
+            data = self._cache_store.get_inode(inode_id, 0)
+            if data is None:
+                data = b''
+            if len(data) < attr.st_size:
+                data = data + b'\0' * (attr.st_size - len(data))
+            else:
+                data = data[:attr.st_size]
+            # update size of the file in inode-map
+            inode.size = attr.st_size
+            # update the cached object in the cache store
+            self._cache_store.put_inode(inode_id, 0, data)
+
+
+    def open(self, inode_id, flags, ctx):
+        """Open the file using inode id"""
+        if self._cache_store.exists_inode(inode_id) is False:
+            data = self._data_store.get_dnode(inode_id)
+            self._cache_store.put_inode(inode_id, data)
+        super(self.__class__, self).open(inode_id, flags, ctx)
+    
+    def read(self, inode_id, off, size):
+        """Read a file"""
+        super(self.__class__, self).read(inode_id, off, size)
+        data = self._cache_store.read_inode(inode_id, 0, off, off+size-1)
+        if data:
+            return data
+        else:
+            return b''
+    
+    def write(self, inode_id, offset, buf):
+        """Write a file"""
+        super(self.__class__, self).write(inode_id, offset, buf)
+        inode = self._meta_store.get_inode(inode_id)
+        data_size = inode.size
+        self._cache_store.write_inode(inode_id, 0, offset, buf)
+        inode.size = max(data_size, len(buf)+offset)
+        self._super_block.incr_used_size(inode.size-data_size)
+        return len(buf)
+    
+    def release(self, inode_id):
+        """Relase a file"""
+        super(self.__class__, self).release(inode_id)
+        # decrement inode open_count
+        inode = self._meta_store.get_inode(inode_id)
+        inode.open_count -= 1
+        # check if the file is open or not
+        if inode.open_count == 0:
+            data = self._cache_store.get_inode(inode_id)
+            self._data_store.put_dnode(inode_id, data)
+            self._cache_store.remove_inode(inode_id)
+
+
+class ObjectFsOperationsMultipart(ObjectFsOperations):
+    
+    def __init__(self, fs_name):
+        super(self.__class__, self).__init__(fs_name) 
+    
+    def open(self, inode_id, flags, ctx):
+        """Open the file using inode id"""
+        super(ObjectFsOperationsCache, self).open(inode_id, flags, ctx)
+    
+    def read(self, inode_id, off, size):
+        """Read a file"""
+        super(self.__class__, self).read(inode_id, off, size)
+        inode = self._meta_store.get_inode(inode_id)
+        object_block_id = off // settings.DATA_BLOCK_SIZE
+        new_off = off - (object_block_id*settings.DATA_BLOCK_SIZE)
+        if off >= inode.size:
+            return b''
+        # check if object block exists in cache
+        if self._cache_store.exists_inode(inode_id, object_block_id):
+            data = self._cache_store.read_inode(inode_id, object_block_id, new_off, new_off+size-1)
+        else:
+            # enqueue a job to fetch the object block
+            job = self._cache_queue.enqueue_download_task(inode_id, object_block_id, new_off, size-1)
+            for i in range(object_block_id+1, inode.size/settings.DATA_BLOCK_SIZE, 1):
+                self._cache_queue.enqueue_prefetch_task(inode_id, i)
+            while True:
+                if job.status == 'finished':
+                    data = job.result
+                    break
+                elif job.status == 'failed':
+                    break
+        if data:
+            return data
+        else:
+            return b''
+    
+    def write(self, inode_id, offset, buf):
+        """Write a file"""
+        super(self.__class__, self).write(inode_id, offset, buf)
+        inode = self._meta_store.get_inode(inode_id)
+        object_block_id = offset // settings.DATA_BLOCK_SIZE
+        new_offset = offset - (object_block_id*settings.DATA_BLOCK_SIZE)
+        
+        data_size = inode.size
+        self._cache_store.write_inode(inode_id, object_block_id, new_offset, buf)
+        inode.size = max(data_size, len(buf)+offset)
+        self._super_block.incr_used_size(inode.size-data_size)
+        return len(buf)
+    
+    def release(self, inode_id):
+        """Relase a file"""
+        super(self.__class__, self).release(inode_id)
+        # decrement inode open_count
+        inode = self._meta_store.get_inode(inode_id)
+        inode.open_count -= 1
+        # check if the file is open or not
+        if inode.open_count == 0:
+            inode = self._meta_store.get_inode(inode_id)
+            # contains the list of jobs which we have launched
+            job_list = []
+            # containes the etag to part mapping for every part upload
+            etag_part_list = []
+            multi_part_obj = self._data_store.container.object(inode_id).initiate_multipart_upload()
+            # iterate over the size of the file and upload each object block individually
+            for object_block_id in range(inode.size // settings.DATA_BLOCK_SIZE,-1,-1):
+                # append the launched jobs for book-keeping
+                job_list.append(self._cache_queue.enqueue_multipart_upload_task(inode_id, object_block_id, multi_part_obj.id))
+            # wait for all jobs in the list to finish
+            while job_list:
+                for job in job_list:
+                    if job.status == 'finished':
+                        # save part etag mapping for completion
+                        # import pdb; pdb.set_trace()
+                        etag_part_list.append({'ETag': job.result[0], 'PartNumber': job.result[1]})
+                        # remove job from list
+                        job_list.remove(job)
+            # complete the multipart upload
+            self._data_store.container.object(str(inode_id)).complete_multipart_upload(multi_part_obj.id, etag_part_list)
+            print("Finished upload")
+
+class ObjectFsOperationsFactory(object):
+    
+    __mode_classes = {
+        'Cache': ObjectFsOperationsCache,
+        'NoCache': ObjectFsOperationsNoCache,
+        'Multipart': ObjectFsOperationsMultipart
+    }
+    
+    @staticmethod
+    def create_operations(fs_name, fs_mode=settings.FS_OPERATION_MODE):
+        mode_class = ObjectFsOperationsFactory.__mode_classes.get(fs_mode)
+        if mode_class:
+            return mode_class(fs_name)
+        else:
+            logging.error('ObjectFS operation {} not yet supported'.format(settings.FS_OPERATION), exec_func=True)
+            raise NotImplementedError('ObjectFS operation {} not yet supported'.format(settings.FS_OPERATION))
