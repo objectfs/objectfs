@@ -19,7 +19,7 @@ import sys
 import pytest
 import stat
 sys.path.append('..')
-from objectfs.core.cache.cachestore import CacheStore
+from objectfs.core.cache.cachestore import CacheStoreFactory
 from objectfs.settings import Settings
 settings = Settings()
 from config import CACHE_STORE_LIST
@@ -33,7 +33,7 @@ def test_object(cache_store):
 class Cache_Store_Test:
 
     def __init__(self, cache_store):
-        self._cache_store = CacheStore.load('test_fs', cache_store)
+        self._cache_store = CacheStoreFactory.create_store('test_fs', cache_store)
         self._inode_id = 99
         self._data_string = 'hello world'
     

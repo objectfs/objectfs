@@ -19,6 +19,7 @@
 OBJECT_STORE_LIST = ['Swift', 'S3']
 META_STORE_LIST = ['Redis']
 CACHE_STORE_LIST = ['Redis']
+FS_MODE_LIST = ['Cache']
 
 # file-system
 FS_NUM_INODES = 5

@@ -20,7 +20,7 @@ import stat
 import copy
 import pytest
 sys.path.append('..')
-from objectfs.core.data.objectstore import ObjectStore
+from objectfs.core.data.objectstore import ObjectStoreFactory
 from objectfs.settings import Settings
 settings = Settings()
 from config import OBJECT_STORE_LIST
@@ -39,7 +39,7 @@ class Object_Test:
 
     def __init__(self, object_store):
         # load and create the container
-        self.container = ObjectStore.load('test_fs', object_store).container
+        self.container = ObjectStoreFactory.create_store('test_fs', object_store).container
         self.container.create()
         # load the object
         self.object = self.container.object('test_object')

@@ -17,7 +17,7 @@ from __future__ import absolute_import, print_function
 import sys
 sys.path.append('..')
 import pytest
-from objectfs.core.data.objectstore import ObjectStore
+from objectfs.core.data.objectstore import ObjectStoreFactory
 from objectfs.settings import Settings
 settings = Settings()
 from config import OBJECT_STORE_LIST
@@ -32,7 +32,7 @@ class Container_Test:
 
     # def setup_class(self, param):
     def __init__(self, object_store):
-        self.container = ObjectStore.load('test_fs', object_store).container
+        self.container = ObjectStoreFactory.create_store('test_fs', object_store).container
     
     def teardown_class(self):
         pass
