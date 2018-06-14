@@ -26,22 +26,10 @@ class ObjectStore(object):
     
     def __init__(self, container_name):
         self._container_name = container_name
-    
-    @staticmethod
-    def load(fs_name, object_store=settings.OBJECT_STORE):
-        return ObjectStore.get_store(object_store)(fs_name)
-    
-    @staticmethod
-    def get_store(object_store=settings.OBJECT_STORE):
-        if object_store == 'Swift':
-            return SwiftStore
-        elif object_store == 'S3':
-            return S3Store
-        elif object_store == 'Google':
-            return GoogleStore
-        else:
-            logging.error('Object store {} not yet supported'.format(settings.OBJECT_STORE), exec_func=True)
-            raise
+
+    # @staticmethod
+    # def load(fs_name, object_store=settings.OBJECT_STORE):
+        # return ObjectStoreFactory.create_store(object_store)(fs_name)
     
     def get_dnode(self, inode_id, object_block_id=None):
         """Return the corresponding data node for this inode"""
@@ -107,3 +95,20 @@ class GoogleStore(ObjectStore):
     @staticmethod
     def connection():
         return GoogleConnection
+
+class ObjectStoreFactory(object):
+    
+    __store_classes = {
+        'S3': S3Store,
+        'Swift': SwiftStore,
+        'Google': GoogleStore
+    }
+    
+    @staticmethod
+    def create_store(fs_name, object_store=settings.OBJECT_STORE):
+        store_class = ObjectStoreFactory.__store_classes.get(object_store)
+        if store_class:
+            return store_class(fs_name)
+        else:
+            logging.error('Requested object store {} not yet supported'.format(settings.OBJECT_STORE), exec_func=True)
+            raise NotImplementedError('Requested object store {} not yet supported'.format(settings.OBJECT_STORE))
