@@ -1,9 +1,11 @@
 # ObjectFS
 
-A file system with the power of an object store.
+A file system with the power of an object store. 
 
 [![Hex.pm](https://img.shields.io/hexpm/l/plug.svg)](http://www.apache.org/licenses/LICENSE-2.0.html)
 [![Build Status](https://travis-ci.org/objectfs/objectfs.svg?branch=master)](https://travis-ci.org/objectfs/objectfs)
+
+ObjectFS allows you to mount a generic object store as a file system. It is POSIX complete and compatible with AWS S3, Google Cloud Storage, OpenStack Swift and other S3-based object stores.
 
 ## Usage
 * Make file-system
@@ -41,3 +43,7 @@ A stack overview of ObjectFS:
 
 A file in ObjectFS:
 ![File Structure](./docs/images/file.png)
+
+## Contributing
+
+Please submit bug reports as git issues and label them as a *bug*. If you have feature requests, questions please free to open git issues for the same and label them appropriately. You can also contribute code or bug fixes by opening a pull request.
