@@ -32,20 +32,13 @@ DATA_DELIMITER = '&'
 
 class CacheStore(object):
     
-    @staticmethod
-    def load(fs_name, cache_store=settings.CACHE_STORE):
-        return CacheStore.get_store(cache_store)(fs_name)
+    # @staticmethod
+    # def load(fs_name, cache_store=settings.CACHE_STORE):
+        # return CacheStore.get_store(cache_store)(fs_name)
     
-    @staticmethod
-    def get_store(cache_store=settings.CACHE_STORE):
-        if cache_store == 'Redis':
-            return RedisCacheStore
-        elif cache_store == 'File':
-            return FileCacheStore
-        else:
-            logger.error("Cache store in {} is not supported".format(cache_store))
-            raise e
-
+    def __init__(self, fs_name):
+        self._fs_name = fs_name
+        
     @abstractmethod
     def write_inode(self, inode_id, offset, buf, object_block_id=0):
         """Write an inode to cache"""
@@ -79,8 +72,8 @@ class CacheStore(object):
 class RedisCacheStore(CacheStore):
 
     def __init__(self, fs_name):
+        super(self.__class__, self).__init__(fs_name)
         try:
-            self._fs_name = fs_name
             # self._client = redis.StrictRedis(connection_pool=RedisPool.blocking_pool)
             self._client = redis.StrictRedis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=0)
             self._pipe = self._client.pipeline(transaction=False)
@@ -154,7 +147,7 @@ class RedisCacheStore(CacheStore):
 class FileCacheStore(CacheStore):
 
     def __init__(self, fs_name):
-        self._fs_name = fs_name
+        super(self.__class__, self).__init__(fs_name)
         
     def _cache_key(self, inode_id, object_block_id):
         return '{}{}{}{}{}{}{}{}'.format(settings.FILE_CACHE_MOUNT_POINT, self._fs_name, FS_DELIMITER, 'data', FS_DELIMITER, inode_id, FS_DELIMITER, object_block_id)
@@ -224,3 +217,19 @@ class FileCacheStore(CacheStore):
         except Exception as e:
             print(e)
             raise e
+
+class CacheStoreFactory(object):
+    
+    __store_classes = {
+        'Redis': RedisCacheStore,
+        'File': FileCacheStore
+    }
+    
+    @staticmethod
+    def create_store(fs_name, cache_store=settings.CACHE_STORE):
+        store_class = CacheStoreFactory.__store_classes.get(cache_store)
+        if store_class:
+            return store_class(fs_name)
+        else:
+            logger.error("Cache store in {} is not supported".format(cache_store))
+            raise NotImplementedError("Cache store in {} is not supported".format(cache_store))
