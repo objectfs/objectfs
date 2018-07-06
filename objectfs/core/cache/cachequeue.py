@@ -33,7 +33,7 @@ class CacheQueue(object):
             logger.error("Cannot connect to Redis Server")
             raise e
     
-    def enqueue_download_task(self, inode_id, object_block_id, offset, size):
+    def enqueue_download_task(self, inode_id, offset, size, object_block_id):
         logger.debug("Enqueueing download task for inode {} object-block {}".format(inode_id, object_block_id))
         return self._queue.enqueue_call(func=download_object_block, args=(self._fs_name, inode_id, object_block_id, offset, size), timeout=5000)
     

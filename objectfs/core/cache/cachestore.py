@@ -150,12 +150,15 @@ class FileCacheStore(CacheStore):
         super(self.__class__, self).__init__(fs_name)
         
     def _cache_key(self, inode_id, object_block_id):
-        return '{}{}{}{}{}{}{}{}'.format(settings.FILE_CACHE_MOUNT_POINT, self._fs_name, FS_DELIMITER, 'data', FS_DELIMITER, inode_id, FS_DELIMITER, object_block_id)
+        if object_block_id is None:
+            return '{}{}{}{}{}{}'.format(settings.FILE_CACHE_MOUNT_POINT, self._fs_name, FS_DELIMITER, 'data', FS_DELIMITER, inode_id)
+        else:
+            return '{}{}{}{}{}{}{}{}'.format(settings.FILE_CACHE_MOUNT_POINT, self._fs_name, FS_DELIMITER, 'data', FS_DELIMITER, inode_id, FS_DELIMITER, object_block_id)
     
     def _open_cache_block(self, inode_id, object_block_id, file_flag):
         return os.open(self._cache_key(inode_id, object_block_id), file_flag) 
 
-    def write_inode(self, inode_id, object_block_id, offset, buf):
+    def write_inode(self, inode_id, offset, buf, object_block_id=None):
         """Write an inode to cache"""
         try:
             logger.debug("Write inode:{} to cache at offset:{},length:{}".format(inode_id, offset, len(buf)))
@@ -168,7 +171,7 @@ class FileCacheStore(CacheStore):
             print(e)
             raise e
 
-    def read_inode(self, inode_id, object_block_id, offset, size):
+    def read_inode(self, inode_id, offset, size, object_block_id=None):
         """Read an inode from cache"""
         try:
             logger.debug("Read inode:{} from cache with offset:{},size:{}".format(inode_id, offset, size))
@@ -181,26 +184,31 @@ class FileCacheStore(CacheStore):
             print(e)
             raise e
     
-    def get_inode(self, inode_id, object_block_id):
+    def get_inode(self, inode_id, object_block_id=None):
         """Get an inode from the cache"""
         try:
-            return ''
+            f = open(self._cache_key(inode_id, object_block_id))
+            data = f.read()
+            return data
         except Exception as e:
             print(e)
             raise e
 
-    def put_inode(self, inode_id, data, object_block_id=0):
+    def put_inode(self, inode_id, data, offset=None, object_block_id=None):
         """Put an inode inside cache"""
         try:
             logger.debug("Put inode:{} into cache".format(inode_id))
             # os.mknod(self._cache_key(inode_id, object_block_id), mode=0600|stat.S_IFREG)
-            file_descp = os.open(self._cache_key(inode_id, object_block_id), os.O_CREAT)
+            file_descp = os.open(self._cache_key(inode_id, object_block_id), os.O_WRONLY | os.O_CREAT)
+            # if offset:
+                # os.lseek(file_descp, offset, os.SEEK_SET)
+            os.write(file_descp, data)
             os.close(file_descp)
         except Exception as e:
             print(e)
             raise e
     
-    def remove_inode(self, inode_id, object_block_id=0):
+    def remove_inode(self, inode_id, object_block_id=None):
         """Delete the inode from cache"""
         try:
             logger.debug("Remove inode:{} from cache".format(inode_id))
@@ -209,7 +217,7 @@ class FileCacheStore(CacheStore):
             print(e)
             raise e
 
-    def exists_inode(self, inode_id, object_block_id=0):
+    def exists_inode(self, inode_id, object_block_id=None):
         """Check if inode exists"""
         try:
             logger.debug("Check if inode:{} exists".format(inode_id))
