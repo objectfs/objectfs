@@ -40,10 +40,17 @@ class BlockSet(object):
         """Key for storing the set"""
         return '{}{}{}{}{}'.format(self._fs_name, FS_DELIMITER, inode_id, NAME_DELIMITER, self._cache_type)
     
-    def add(self, inode_id, block_id):
+    def delete_set(self, inode_id):
+        """Delete set"""
+        try:
+            self._client.delete(self._set_key(inode_id))
+        except Exception as e:
+            raise e
+
+    def add(self, inode_id, block_id_list):
         """Add members to the set"""
         try:
-            self._client.sadd(self._set_key(inode_id), block_id)
+            self._client.sadd(self._set_key(inode_id), *block_id_list)
         except Exception as e:
             raise e
 

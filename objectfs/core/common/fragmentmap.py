@@ -15,6 +15,7 @@
 
 from __future__ import print_function, absolute_import
 import redis
+from sets import Set
 from time import time
 from sortedcontainers import SortedKeyList
 from operator import neg
@@ -44,8 +45,13 @@ class FragmentMap(object):
 
     def _log_key(self, inode_id, block_id_list, flush_time):
         """Return the log fragment index"""
-        return LOG_DELIMITER.join(map(str, [flush_time]+block_id_list))
+        return '{}{}{}'.format(LOG_DELIMITER.join(map(str, [flush_time]+block_id_list)), NAME_DELIMITER,inode_id)
     
+    def _decode_log_key(self, inode, log_object_name):
+        """Return the block id list given a log object name"""
+        block_id_list = log_object_name.split(NAME_DELIMITER)[0].split(LOG_DELIMITER)
+        return block_id_list[1:]
+
     def _remove_block(self, inode_id, block_id):
         """Remove a single block"""
         try:
@@ -69,9 +75,9 @@ class FragmentMap(object):
         except Exception as e:
             raise e
     
-    def add_cache_fragment(self, inode_id, block_id):
+    def add_cache_fragment(self, inode_id, block_id, time=time()):
         """Add an index for a cache fragment"""
-        self._add_fragment(inode_id, block_id, int(time()), self._cache_key(inode_id, block_id))
+        return self._add_fragment(inode_id, block_id, int(time), self._cache_key(inode_id, block_id))
     
     def remove_cache_fragment(self, inode_id, block_id_list, flush_time):
         """Remove indexes for cache fragments"""
