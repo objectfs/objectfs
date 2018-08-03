@@ -60,6 +60,7 @@ class ObjectFsOperations(llfuse.Operations):
         # loading the cache store
         self._cache_store = CacheStoreFactory.create_store(self.fs_name)
         # load the cache queue
+        # TODO needs to be renamed
         self._cache_queue = CacheQueue(self.fs_name)
         self._cache_flag = True
 
@@ -606,6 +607,11 @@ class ObjectFsOperationsMultipart(ObjectFsOperations):
         self._clean_set = CleanSet(fs_name)
         # loading the merge queue
         self._merge_queue = MergeQueue(fs_name)
+        # local variables
+        import collections
+        from sets import Set
+        self._local_dirty_set = collections.defaultdict(Set)
+        self._local_fragment_map = collections.defaultdict(list)
     
     
     def setattr(self, inode_id, attr, fields, fh, ctx):
@@ -676,78 +682,103 @@ class ObjectFsOperationsMultipart(ObjectFsOperations):
         # adding data as cache block
         self._cache_store.write_inode(inode_id, new_offset, buf, object_block_id)
         # adding cache fragment index
-        self._fragment_map.add_cache_fragment(inode_id, object_block_id)
+        self._local_fragment_map[inode_id].append((inode_id, object_block_id, int(time())))
+        # self._fragment_map.add_cache_fragment(inode_id, object_block_id)
         # adding block id in to dirty set
-        self._dirty_set.add(inode_id, object_block_id)
+        self._local_dirty_set[inode_id].add((inode_id, object_block_id))
+        # self._dirty_set.add(inode_id, [object_block_id])
         
-        inode.size = max(data_size, len(buf)+offset)
-        self._super_block.incr_used_size(inode.size-data_size)
+        # inode.size = max(data_size, len(buf)+offset)
+        # self._super_block.incr_used_size(inode.size-data_size)
         return len(buf)
-    
+   
+    def fsync(self, inode_id, datasync):
+        """Implementing fsync"""
+        self._sync(inode_id)
+
+    def _sync(self, inode_id):
+        """Flush to log"""
+        inode = self._meta_store.get_inode(inode_id)
+          
+        from objectfs.core.cache.cachetask import multipart_upload_object_block
+        from time import time
+        block_list = []
+        etag_part_list = []
+        args_list = []
+        flush_time = int(time())
+
+        # fetch blocks from dirty set
+        # for object_block_id in self._dirty_set.get(inode_id):
+            # block_list.append(object_block_id)
+        for object_block_id in list(self._local_dirty_set[inode_id]):
+            block_list.append(object_block_id[1])
+
+        # sort block list
+        block_list.sort()
+        # create log object name
+        log_object_name = self._fragment_map._log_key(inode_id, block_list, flush_time)
+        # intiate multi-part upload
+        multi_part_obj = self._data_store.container.object(log_object_name).initiate_multipart_upload()
+        
+        # for object_block_id in self._dirty_set.get(inode_id):
+        for object_block_id in block_list:
+            args_list.append((self.fs_name, inode.id, object_block_id, multi_part_obj.id, log_object_name))
+        
+        if args_list == []:
+            return
+        pool = Pool(processes=4)
+        job_result_list = pool.map(multipart_upload_object_block, args_list)
+        pool.close()
+        # collect etags and coresponding part numbers from multi-part upload
+        for job_result in job_result_list:
+            etag_part_list.append({'ETag': job_result[0], 'PartNumber': job_result[1]})
+        
+        # complete multi-part upload
+        self._data_store.container.object(log_object_name).complete_multipart_upload(multi_part_obj.id, etag_part_list)
+        # insert log object fragments into fragment map
+        self._fragment_map.add_log_fragment(inode_id, block_list, flush_time)
+        log_fragment_index = self._fragment_map._log_key(inode_id, block_list, int(flush_time))
+        # insert 
+        self._merge_queue.insert(inode_id, log_fragment_index)
+        # remove cache fragments from the fragment map
+        self._fragment_map.remove_cache_fragment(inode_id, block_list, flush_time)
+        # convert dirty cache blocks to clean cache blocks
+        self._dirty_set.remove(inode_id, block_list)
+        self._clean_set.add(inode_id, block_list)
+        # intiate merge task for inode
+        # self._cache_queue.enqueue_merge_task(inode_id)
+
+        # # contains the list of jobs which we have launched
+        # job_list = []
+        # # containes the etag to part mapping for every part upload
+        # etag_part_list = []
+        # multi_part_obj = self._data_store.container.object(inode_id).initiate_multipart_upload()
+        # # iterate over the size of the file and upload each object block individually
+        # for object_block_id in range(inode.size // settings.DATA_BLOCK_SIZE,-1,-1):
+            # # append the launched jobs for book-keeping
+            # job_list.append(self._cache_queue.enqueue_multipart_upload_task(inode_id, object_block_id, multi_part_obj.id))
+        # # wait for all jobs in the list to finish
+        # while job_list:
+            # for job in job_list:
+                # if job.status == 'finished':
+                    # # save part etag mapping for completion
+                    # # import pdb; pdb.set_trace()
+                    # etag_part_list.append({'ETag': job.result[0], 'PartNumber': job.result[1]})
+                    # # remove job from list
+                    # job_list.remove(job)
+        # # complete the multipart upload
+        # self._data_store.container.object(str(inode_id)).complete_multipart_upload(multi_part_obj.id, etag_part_list)
+
     def release(self, inode_id):
         """Relase a file"""
         super(self.__class__, self).release(inode_id)
         # decrement inode open_count
         inode = self._meta_store.get_inode(inode_id)
         inode.open_count -= 1
+        
         # check if the file is open or not
-        if inode.open_count == 0:
-            inode = self._meta_store.get_inode(inode_id)
-            
-            import pdb; pdb.set_trace()
-            from objectfs.core.cache.cachetask import multipart_upload_object_block
-            from time import time
-            block_list = []
-            etag_part_list = []
-            flush_time = time()
-            for object_block_id in self._dirty_set.get(inode_id):
-                block_list.append(object_block_id)
-            
-            # create log object name 
-            log_object_name = '_'.join(flush_time+block_list)
-            # intiate multi-part upload
-            multi_part_obj = self._data_store.container.object(log_object_name).initiate_multipart_upload()
-            
-            for object_block_id in self._dirty_set.get(inode_id):
-                args_list.append((self.fs_name, inode.id, object_block_id, multi_part_obj.id))
-
-            pool = Pool(processes=4)
-            job_result_list = pool.map(multipart_upload_object_block, args_list)
-            # collect etags and coresponding part numbers from multi-part upload
-            for job_result in job_result_list:
-                etag_part_list.append({'ETag': job_result[0], 'PartNumber': job_result[1]})
-            
-            # complete multi-part upload
-            self._data_store.container.object(log_object_name).complete_multipart_upload(multi_part_obj.id, etag_part_list)
-            # insert log object fragments into fragment map
-            log_fragment_index = self._fragment_map.add_log_fragment(inode_id, block_list, flush_time)
-            # insert 
-            self._merge_queue.insert(inode_id, log_fragment_index)
-            # remove cache fragments from the fragment map
-            self._fragment_map.remove_cache_fragment(inode_id, block_list, flush_time)
-            # convert dirty cache blocks to clean cache blocks
-            # TODO KL
-
-            # # contains the list of jobs which we have launched
-            # job_list = []
-            # # containes the etag to part mapping for every part upload
-            # etag_part_list = []
-            # multi_part_obj = self._data_store.container.object(inode_id).initiate_multipart_upload()
-            # # iterate over the size of the file and upload each object block individually
-            # for object_block_id in range(inode.size // settings.DATA_BLOCK_SIZE,-1,-1):
-                # # append the launched jobs for book-keeping
-                # job_list.append(self._cache_queue.enqueue_multipart_upload_task(inode_id, object_block_id, multi_part_obj.id))
-            # # wait for all jobs in the list to finish
-            # while job_list:
-                # for job in job_list:
-                    # if job.status == 'finished':
-                        # # save part etag mapping for completion
-                        # # import pdb; pdb.set_trace()
-                        # etag_part_list.append({'ETag': job.result[0], 'PartNumber': job.result[1]})
-                        # # remove job from list
-                        # job_list.remove(job)
-            # # complete the multipart upload
-            # self._data_store.container.object(str(inode_id)).complete_multipart_upload(multi_part_obj.id, etag_part_list)
+        # if inode.open_count == 0:
+            # self._sync(inode_id)
 
 class ObjectFsOperationsFactory(object):
     
