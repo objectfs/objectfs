@@ -20,28 +20,40 @@ import os
 import argparse
 import time
 import multiprocessing
+from procnetdev import ProcNetDev
+from operator import add
 import boto3.s3.transfer as transfer
-from objectfs.core.data.objectstore import ObjectStore
+from objectfs.core.data.objectstore import ObjectStoreFactory
 import csv
 
-FILE_SIZE = 10
-NUM_ITER = 5
-NUM_PROC = 1
+FILE_SIZE = 30
+NUM_ITER = 6
+NUM_PROC = 4
 BUCKET_NAME = 'kunalfs'
 
 def func_wrapper(args):
     data_store = ObjectStore.load('testfs')
     data_store.get_dnode(*args)
 
+def multipart_upload_task((fs_name, object_name, block_id, multipart_id, data)):
+    data_store = ObjectStoreFactory.create_store(fs_name)
+    start_time = time.time()
+    value = data_store.multipart_upload_dnode(object_name, block_id, multipart_id, data)
+    print(time.time()-start_time)
+    return value
 
 class ObjectStoreBenchmark(object):
 
     def __init__(self):
         self.parse_args = self._parse_args()
-        self.data_store = ObjectStore.load(self.parse_args.bucket)
-        # self._data_store = ObjectStore.load('testfs')
+        self.data_store = ObjectStoreFactory.create_store(self.parse_args.bucket)
+        self.pnd = ProcNetDev()
+        values = []
         for iter_num in range(self.parse_args.iter):
-          self.parse_args.func(iter_num)
+          values.append(self.parse_args.func(iter_num))
+          time.sleep(3)
+        self.write_csv(values)
+
     
     def read(self, iter_num):
         """Run the read object benchmark"""
@@ -97,37 +109,67 @@ class ObjectStoreBenchmark(object):
         start_time = time.time()
         self.data_store.container.object(self.parse_args.object_name+str(iter_num)).download_fileobj(config=config)
         end_time = time.time()
-        print("ITER:{}, TIME:{}".format(iter_num, end_time-start_time))
+        print("{}".format(iter_num, end_time-start_time))
         self.write_csv([end_time-start_time])
     
     def multipart_upload(self, iter_num):
         """Multi-part upload"""
-
-        block_size = (self.parse_args.size*1024*1024)/self.parse_args.num
+        
+        object_name = self.parse_args.object_name+str(iter_num)
+        pool = multiprocessing.Pool(processes=self.parse_args.num)
+        etag_part_list = []
+        args_list = []
+        # block_size = (self.parse_args.size*1024*1024)/self.parse_args.num
+        block_size = (10485760*1)
         data = self.read_input_file()
-        config = transfer.TransferConfig(multipart_threshold = 1, 
-                                max_concurrency = self.parse_args.num,
-                                multipart_chunksize = block_size,
-                                max_io_queue = 1000,
-                                io_chunksize = block_size,
-                                use_threads = True)
+        # config = transfer.TransferConfig(multipart_threshold = 1, 
+                                # max_concurrency = self.parse_args.num,
+                                # multipart_chunksize = block_size,
+                                # max_io_queue = 1000,
+                                # io_chunksize = block_size,
+                                # use_threads = True)
+        recvd_bytes = self.pnd['eth0']['receive']['bytes']
+        transmit_bytes = self.pnd['eth0']['transmit']['bytes']
         start_time = time.time()
-        self.data_store.container.object(self.parse_args.object_name+str(iter_num)).upload_fileobj(data, config=config)
+        # self.data_store.container.object(self.parse_args.object_name+str(iter_num)).upload_fileobj(data, config=config)
+        multi_part_obj = self.data_store.container.object(object_name).initiate_multipart_upload()
+        for block_id in range(0, (self.parse_args.size*1024*1024)//block_size, 1):
+            args_list.append((self.parse_args.bucket, object_name, block_id, multi_part_obj.id, data))
+        job_result_list = pool.map(multipart_upload_task, args_list)
+        for job_result in job_result_list:
+            etag_part_list.append({'ETag': job_result[0], 'PartNumber': job_result[1]})
+        self.data_store.container.object(object_name).complete_multipart_upload(multi_part_obj.id, etag_part_list)
         end_time = time.time()
-        print("ITER:{}, TIME:{}".format(iter_num, end_time-start_time))
-        self.write_csv([end_time-start_time])
+        pool.close()
+        self.pnd['eth0']['receive']['bytes']-recvd_bytes
+        self.pnd['eth0']['transmit']['bytes']-transmit_bytes
+        print("{}".format(end_time-start_time))
+        return (end_time-start_time, float(self.pnd['eth0']['receive']['bytes']-recvd_bytes)/(1024*1024), float(self.pnd['eth0']['transmit']['bytes']-transmit_bytes)/(1024*1024))
   
     def read_input_file(self):
         """Reading the input file"""
-        input_file = open("{}".format(self.parse_args.size), 'r')
+        # input_file = open("{}".format(self.parse_args.size), 'r')
+        input_file = open("{}".format(10), 'r')
         return input_file.read()
-
+    
     def write_csv(self, values):
         """Write to csv file"""
         
-        with open("{}{}.csv".format(self.parse_args.func.__name__, self.parse_args.size), 'a+') as csv_file:
-           value_writer = csv.writer(csv_file, delimiter=' ')
-           value_writer.writerow(values)
+        time_values = [x[0] for x in values]
+        io_values = [float(self.parse_args.size)/x for x in time_values]
+        recvd_values = [x[1] for x in values]
+        transmit_values = [x[2] for x in values]
+        total_net_values = map(add, recvd_values, transmit_values)
+
+        with open("{}_io.csv".format(self.parse_args.func.__name__), 'a+') as csv_file:
+           value_writer = csv.writer(csv_file, delimiter='\t')
+           value_writer.writerow(io_values)
+        
+        with open("{}_net.csv".format(self.parse_args.func.__name__), 'a+') as csv_file:
+           value_writer = csv.writer(csv_file, delimiter='\t')
+           value_writer.writerow(recvd_values)
+           value_writer.writerow(transmit_values)
+           value_writer.writerow(total_net_values)
 
     def _parse_args(self):
         """Parse arguments"""
