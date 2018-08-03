@@ -16,9 +16,12 @@
 from __future__ import print_function, absolute_import
 import redis
 from time import time
+from sets import Set
 from rq.decorators import job
 from objectfs.core.data.objectstore import ObjectStoreFactory
 from objectfs.core.cache.cachestore import CacheStoreFactory
+from objectfs.core.common.mergequeue import MergeQueue
+from objectfs.core.common.fragmentmap import FragmentMap
 from objectfs.settings import Settings
 settings = Settings()
 import logging
@@ -63,13 +66,61 @@ def prefetch_object_block((fs_name, inode_id, object_block_id)):
         cache_store.put_inode(inode_id, data, object_block_id=object_block_id)
         logger.debug("Finished with prefetch task for inode {}, object_block {}".format(inode_id, object_block_id))
 
-def multipart_upload_object_block((fs_name, inode_id, object_block_id, multipart_id)):
+def multipart_upload_object_block((fs_name, inode_id, object_block_id, multipart_id, log_object_name)):
     """Multipart upload task"""
     data_store = ObjectStoreFactory.create_store(fs_name)
     cache_store = CacheStoreFactory.create_store(fs_name)
     logger.debug("Starting multipart_upload task for inode {} object-block {} multi-part {}".format(inode_id, object_block_id, multipart_id))
     # read data from cache
     data = cache_store.read_inode(inode_id, 0, settings.DATA_BLOCK_SIZE-1, object_block_id)
+    # remove data from cache
+    cache_store.remove_inode(inode_id, object_block_id)
     # upload data to object store
-    return data_store.multipart_upload_dnode(inode_id, object_block_id, multipart_id, data)
+    return data_store.multipart_upload_dnode(inode_id, object_block_id, multipart_id, data, log_object_name)
     logger.debug("Finished with multipart_upload task for inode {} object-block {} multi-part {}".format(inode_id, object_block_id, multipart_id))
+
+@job('default', connection=redis_client, timeout=100)
+def merge_log_objects(fs_name, inode_id):
+    data_store = ObjectStoreFactory.create_store(fs_name)
+    cache_store = CacheStoreFactory.create_store(fs_name)
+    merge_queue = MergeQueue(fs_name)
+    fragment_map = FragmentMap(fs_name)
+    
+    log_object_list = []
+    for log_object in merge_queue.fetch(inode_id):
+        log_object_list.append(log_object)    
+    
+    object_id_set = Set([])
+    etag_part_list = []
+    # start multipart upload
+    base_obj = data_store.container.object(inode_id).initiate_multipart_upload()
+
+    for log_object in log_object_list:
+        block_id_list = fragment_map._decode_log_key(inode_id, log_object)
+        block_id_list = map(int, block_id_list)
+        log_object_set = Set(block_id_list)
+
+        for block_id in log_object_set.difference(object_id_set):
+            # fetch from block_index since it determines where the block lives in that log object
+            block_index = block_id_list.index(block_id)
+            print("Log:", block_id)
+            data = data_store.get_dnode(inode_id, int(block_index), log_object)
+            job_result = data_store.multipart_upload_dnode(inode_id, int(block_id), base_obj.id, data)
+            etag_part_list.append({'ETag': job_result[0], 'PartNumber': job_result[1]})
+
+        object_id_set = object_id_set.union(log_object_set)
+    
+    # upload the remaining from the base object
+    base_obj_set = Set(range(data_store.dnode_size(inode_id)//settings.DATA_BLOCK_SIZE))
+    for block_id in base_obj_set.symmetric_difference(object_id_set):
+        data = data_store.get_dnode(inode_id, int(block_id))
+        print("Base:", block_id)
+        job_result = data_store.multipart_upload_dnode(inode_id, int(block_id), base_obj.id, data)
+        etag_part_list.append({'ETag': job_result[0], 'PartNumber': job_result[1]})
+
+    # complete multipart upload
+    data_store.container.object(inode_id).complete_multipart_upload(base_obj.id, etag_part_list)
+    # remove log object from object store and merge queue
+    for log_object in log_object_list:
+        data_store.delete_dnode(inode_id, log_object)
+        merge_queue.remove(inode_id, log_object)

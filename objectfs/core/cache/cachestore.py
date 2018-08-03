@@ -170,6 +170,8 @@ class FileCacheStore(CacheStore):
         except Exception as e:
             print(e)
             raise e
+        finally:
+            os.close(file_descp)
 
     def read_inode(self, inode_id, offset, size, object_block_id=None):
         """Read an inode from cache"""
@@ -183,6 +185,8 @@ class FileCacheStore(CacheStore):
         except Exception as e:
             print(e)
             raise e
+        finally:
+            os.close(file_descp)
     
     def get_inode(self, inode_id, object_block_id=None):
         """Get an inode from the cache"""
@@ -203,10 +207,11 @@ class FileCacheStore(CacheStore):
             # if offset:
                 # os.lseek(file_descp, offset, os.SEEK_SET)
             os.write(file_descp, data)
-            os.close(file_descp)
         except Exception as e:
             print(e)
             raise e
+        finally:
+            os.close(file_descp)
     
     def remove_inode(self, inode_id, object_block_id=None):
         """Delete the inode from cache"""
