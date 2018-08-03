@@ -173,6 +173,14 @@ class S3Object(DataObject):
     def __init__(self, container_obj, object_name, store_connection):
         super(S3Object, self).__init__(container_obj, object_name, store_connection)
         self._object = self._connection.conn.Object(self.container.name, str(self.name))
+    
+    def content_length(self):
+        """Size of object"""
+        try:
+            return self._object.content_length
+        except:
+            print(e)
+            raise e
 
     def put(self, contents):
         """Put an object"""
@@ -255,6 +263,7 @@ class S3Object(DataObject):
         try:
             if object_block_id is not None:
                 # print(object_block_id, object_block_id*settings.DATA_BLOCK_SIZE, (object_block_id+1)*settings.DATA_BLOCK_SIZE)
+                object_block_id = int(object_block_id)
                 response = self._object.get(Range='bytes={}-{}'.format(object_block_id*settings.DATA_BLOCK_SIZE, (object_block_id+1)*settings.DATA_BLOCK_SIZE))
             else:
                 response = self._object.get()

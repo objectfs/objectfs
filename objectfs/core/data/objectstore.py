@@ -31,35 +31,60 @@ class ObjectStore(object):
     # def load(fs_name, object_store=settings.OBJECT_STORE):
         # return ObjectStoreFactory.create_store(object_store)(fs_name)
     
-    def get_dnode(self, inode_id, object_block_id=None):
+    def get_dnode(self, inode_id, object_block_id=None, log_object_name=None):
         """Return the corresponding data node for this inode"""
         logger.debug('GET Dnode for inode {}'.format(inode_id))
-        return self.container.object(inode_id).get(object_block_id)
+        if log_object_name:
+            return self.container.object(log_object_name).get(object_block_id)
+        else:  
+            return self.container.object(inode_id).get(object_block_id)
 
-    def put_dnode(self, inode_id, data):
+    def put_dnode(self, inode_id, data, log_object_name=None):
         """Insert a data node for this inode"""
         logger.debug('PUT Dnode for inode {}'.format(inode_id))
-        return self.container.object(inode_id).put(data)
+        if log_object_name:
+            return self.container.object(log_object_name).put(data)
+        else:
+            return self.container.object(inode_id).put(data)
+    
+    def dnode_size(self, inode_id, log_object_name=None):
+        """Size of the object"""
+        if log_object_name:
+            return self.container.object(log_object_name).content_length()
+        else:
+            return self.container.object(inode_id).content_length()
 
-    def delete_dnode(self, inode_id):
+    def delete_dnode(self, inode_id, log_object_name=None):
         """Delete the data node for this inode"""
         logger.debug('DELETE Dnode for inode {}'.format(inode_id))
-        return self.container.object(inode_id).delete()
+        if log_object_name:
+            return self.container.object(log_object_name).delete()
+        else:
+            return self.container.object(inode_id).delete()
     
-    def multipart_upload_dnode(self, inode_id, object_block_id, multipart_id, data):
+    def multipart_upload_dnode(self, inode_id, object_block_id, multipart_id, data, log_object_name=None):
         """Return the multipart for this inode"""
         logger.debug('MULTIPART Dnode for inode {}'.format(inode_id))
-        return self.container.object(inode_id).upload_part(object_block_id, multipart_id, data)
+        if log_object_name:
+            return self.container.object(log_object_name).upload_part(object_block_id, multipart_id, data)
+        else:
+            return self.container.object(inode_id).upload_part(object_block_id, multipart_id, data)
     
-    def multipart_upload_initiate(self, inode_id):
+    def multipart_upload_initiate(self, inode_id, log_object_name=None):
         """Initiate a multipart upload"""
         logger.debug('Start MULTIPART upload for inode {} multipart {}'.format(inode_id, multipart_id))
-        return self.container.object(inode_id).initiate_multipart_upload()
+        if log_object_name:
+            return self.container.object(inode_id).initiate_multipart_upload()
+        else:
+            return self.container.object(inode_id).initiate_multipart_upload()
 
-    def multipart_upload_complete(self, inode_id, multipart_id, etag_part_list):
+    def multipart_upload_complete(self, inode_id, multipart_id, etag_part_list, log_object_name=None):
         """Complete a multipart upload"""
         logger.debug('Complete MULTIPART upload for inode {} multipart {}'.format(inode_id, multipart_id))
-        return self.container.object(inode_id).complete_multipart_upload(multipart_id, etag_part_list)
+        if log_object_name:
+            return self.container.object(log_object_name).complete_multipart_upload(multipart_id, etag_part_list)
+        else:
+            return self.container.object(inode_id).complete_multipart_upload(multipart_id, etag_part_list)
 
     @property
     def container(self):
