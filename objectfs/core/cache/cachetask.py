@@ -104,8 +104,9 @@ def merge_log_objects(fs_name, inode_id):
             # fetch from block_index since it determines where the block lives in that log object
             block_index = block_id_list.index(block_id)
             print("Log:", block_id)
-            data = data_store.get_dnode(inode_id, int(block_index), log_object)
-            job_result = data_store.multipart_upload_dnode(inode_id, int(block_id), base_obj.id, data)
+            # data = data_store.get_dnode(inode_id, int(block_index), log_object)
+            # job_result = data_store.multipart_upload_dnode(inode_id, int(block_id), base_obj.id, data)
+            job_result = data_store.multipart_copy_dnode(inode_id, int(block_id), base_obj.id, log_object, int(block_index))
             etag_part_list.append({'ETag': job_result[0], 'PartNumber': job_result[1]})
 
         object_id_set = object_id_set.union(log_object_set)
@@ -113,11 +114,78 @@ def merge_log_objects(fs_name, inode_id):
     # upload the remaining from the base object
     base_obj_set = Set(range(data_store.dnode_size(inode_id)//settings.DATA_BLOCK_SIZE))
     for block_id in base_obj_set.symmetric_difference(object_id_set):
-        data = data_store.get_dnode(inode_id, int(block_id))
+        # data = data_store.get_dnode(inode_id, int(block_id))
         print("Base:", block_id)
-        job_result = data_store.multipart_upload_dnode(inode_id, int(block_id), base_obj.id, data)
+        # job_result = data_store.multipart_upload_dnode(inode_id, int(block_id), base_obj.id, data)
+        job_result = data_store.multipart_copy_dnode(inode_id, int(block_id), base_obj.id, inode_id, int(block_id))
         etag_part_list.append({'ETag': job_result[0], 'PartNumber': job_result[1]})
 
+    # etag_part_list.sort()
+    from operator import itemgetter
+    etag_part_list = sorted(etag_part_list, key=itemgetter('PartNumber'))
+    # complete multipart upload
+    data_store.container.object(inode_id).complete_multipart_upload(base_obj.id, etag_part_list)
+    # remove log object from object store and merge queue
+    for log_object in log_object_list:
+        data_store.delete_dnode(inode_id, log_object)
+        merge_queue.remove(inode_id, log_object)
+
+def merge_log_object_parallel_worker((fs_name, inode_id, block_index, block_id, multipart_id, log_object)):
+    data_store = ObjectStoreFactory.create_store(fs_name)
+    cache_store = CacheStoreFactory.create_store(fs_name)
+    merge_queue = MergeQueue(fs_name)
+    fragment_map = FragmentMap(fs_name)
+    
+    if block_index is None:
+        data = data_store.get_dnode(inode_id, int(block_id), log_object)
+    else:
+        data = data_store.get_dnode(inode_id, int(block_index), log_object)
+    return data_store.multipart_upload_dnode(inode_id, int(block_id), multipart_id, data)
+    
+
+@job('default', connection=redis_client, timeout=100)
+def merge_log_objects_parallel(fs_name, inode_id, num_threads=4):
+    data_store = ObjectStoreFactory.create_store(fs_name)
+    cache_store = CacheStoreFactory.create_store(fs_name)
+    merge_queue = MergeQueue(fs_name)
+    fragment_map = FragmentMap(fs_name)
+    
+    log_object_list = []
+    for log_object in merge_queue.fetch(inode_id):
+        log_object_list.append(log_object)    
+    
+    object_id_set = Set([])
+    args_list = []
+    etag_part_list = []
+    # start multipart upload
+    base_obj = data_store.container.object(inode_id).initiate_multipart_upload()
+
+    for log_object in log_object_list:
+        block_id_list = fragment_map._decode_log_key(inode_id, log_object)
+        block_id_list = map(int, block_id_list)
+        log_object_set = Set(block_id_list)
+
+        for block_id in log_object_set.difference(object_id_set):
+            # fetch from block_index since it determines where the block lives in that log object
+            block_index = block_id_list.index(block_id)
+            args_list.append((fs_name, inode_id, int(block_index), int(block_id), base_obj.id, log_object))
+
+        object_id_set = object_id_set.union(log_object_set)
+    
+    # upload the remaining from the base object
+    base_obj_set = Set(range(data_store.dnode_size(inode_id)//settings.DATA_BLOCK_SIZE))
+    for block_id in base_obj_set.symmetric_difference(object_id_set):
+        args_list.append((fs_name, inode_id, None, int(block_id), base_obj.id, None))
+    
+    import multiprocessing
+    pool = multiprocessing.Pool(num_threads)
+    print("threads:", num_threads)
+    job_result_list = pool.map(merge_log_object_parallel_worker, args_list)
+    pool.close()
+    for job_result in job_result_list:
+        etag_part_list.append({'ETag': job_result[0], 'PartNumber': job_result[1]})
+    
+    etag_part_list.sort()
     # complete multipart upload
     data_store.container.object(inode_id).complete_multipart_upload(base_obj.id, etag_part_list)
     # remove log object from object store and merge queue
