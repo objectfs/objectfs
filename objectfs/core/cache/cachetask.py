@@ -138,10 +138,10 @@ def merge_log_object_parallel_worker((fs_name, inode_id, block_index, block_id, 
     
     if block_index is None:
         # data = data_store.get_dnode(inode_id, int(block_id), log_object)
-        return data_store.multipart_copy_dnode(inode_id, int(block_id), base_obj.id, inode_id, int(block_index))
+        return data_store.multipart_copy_dnode(inode_id, int(block_id), multipart_id, inode_id, int(block_index))
     else:
         # data = data_store.get_dnode(inode_id, int(block_index), log_object)
-        return data_store.multipart_copy_dnode(inode_id, int(block_id), base_obj.id, inode_id, int(block_id))
+        return data_store.multipart_copy_dnode(inode_id, int(block_id), multipart_id, inode_id, int(block_id))
     # return data_store.multipart_upload_dnode(inode_id, int(block_id), multipart_id, data)
     
 
@@ -162,10 +162,12 @@ def merge_log_objects_parallel(fs_name, inode_id, num_threads=4):
     # start multipart upload
     base_obj = data_store.container.object(inode_id).initiate_multipart_upload()
 
+    import pdb; pdb.set_trace() 
     for log_object in log_object_list:
         block_id_list = fragment_map._decode_log_key(inode_id, log_object)
         block_id_list = map(int, block_id_list)
-        log_object_set = Set(block_id_list)
+    	log_object_set = Set(block_id_list)
+        print(log_object)
 
         for block_id in log_object_set.difference(object_id_set):
             # fetch from block_index since it determines where the block lives in that log object
@@ -188,7 +190,7 @@ def merge_log_objects_parallel(fs_name, inode_id, num_threads=4):
         etag_part_list.append({'ETag': job_result[0], 'PartNumber': job_result[1]})
     
     # etag_part_list.sort()
-    # from operator import itemgetter
+    from operator import itemgetter
     etag_part_list = sorted(etag_part_list, key=itemgetter('PartNumber'))
     # complete multipart upload
     data_store.container.object(inode_id).complete_multipart_upload(base_obj.id, etag_part_list)
