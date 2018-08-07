@@ -29,11 +29,8 @@ import csv
 FILE_SIZE = 30
 NUM_ITER = 6
 NUM_PROC = 4
-BUCKET_NAME = 'kunalfs'
+BUCKET_NAME = 'kunalfs2'
 
-def func_wrapper(args):
-    data_store = ObjectStore.load('testfs')
-    data_store.get_dnode(*args)
 
 def multipart_upload_task((fs_name, object_name, block_id, multipart_id, data)):
     data_store = ObjectStoreFactory.create_store(fs_name)
@@ -115,10 +112,7 @@ class ObjectStoreBenchmark(object):
     def multipart_upload(self, iter_num):
         """Multi-part upload"""
         
-        object_name = self.parse_args.object_name+str(iter_num)
         pool = multiprocessing.Pool(processes=self.parse_args.num)
-        etag_part_list = []
-        args_list = []
         # block_size = (self.parse_args.size*1024*1024)/self.parse_args.num
         block_size = (10485760*1)
         data = self.read_input_file()
@@ -128,23 +122,27 @@ class ObjectStoreBenchmark(object):
                                 # max_io_queue = 1000,
                                 # io_chunksize = block_size,
                                 # use_threads = True)
-        recvd_bytes = self.pnd['eth0']['receive']['bytes']
-        transmit_bytes = self.pnd['eth0']['transmit']['bytes']
+        recvd_bytes = self.pnd['ens5']['receive']['bytes']
+        transmit_bytes = self.pnd['ens5']['transmit']['bytes']
         start_time = time.time()
         # self.data_store.container.object(self.parse_args.object_name+str(iter_num)).upload_fileobj(data, config=config)
-        multi_part_obj = self.data_store.container.object(object_name).initiate_multipart_upload()
-        for block_id in range(0, (self.parse_args.size*1024*1024)//block_size, 1):
-            args_list.append((self.parse_args.bucket, object_name, block_id, multi_part_obj.id, data))
-        job_result_list = pool.map(multipart_upload_task, args_list)
-        for job_result in job_result_list:
-            etag_part_list.append({'ETag': job_result[0], 'PartNumber': job_result[1]})
-        self.data_store.container.object(object_name).complete_multipart_upload(multi_part_obj.id, etag_part_list)
+	for i in range(10):
+            etag_part_list = []
+            args_list = []
+            object_name = str(iter_num)+'_'+str(i)+'_'+self.parse_args.object_name
+            multi_part_obj = self.data_store.container.object(object_name).initiate_multipart_upload()
+            for block_id in range(0, (self.parse_args.size*1024*1024)//block_size, 1):
+                args_list.append((self.parse_args.bucket, object_name, block_id, multi_part_obj.id, data))
+            job_result_list = pool.map(multipart_upload_task, args_list)
+            for job_result in job_result_list:
+                etag_part_list.append({'ETag': job_result[0], 'PartNumber': job_result[1]})
+            self.data_store.container.object(object_name).complete_multipart_upload(multi_part_obj.id, etag_part_list)
         end_time = time.time()
         pool.close()
-        self.pnd['eth0']['receive']['bytes']-recvd_bytes
-        self.pnd['eth0']['transmit']['bytes']-transmit_bytes
+        self.pnd['ens5']['receive']['bytes']-recvd_bytes
+        self.pnd['ens5']['transmit']['bytes']-transmit_bytes
         print("{}".format(end_time-start_time))
-        return (end_time-start_time, float(self.pnd['eth0']['receive']['bytes']-recvd_bytes)/(1024*1024), float(self.pnd['eth0']['transmit']['bytes']-transmit_bytes)/(1024*1024))
+        return (end_time-start_time, float(self.pnd['ens5']['receive']['bytes']-recvd_bytes)/(1024*1024), float(self.pnd['ens5']['transmit']['bytes']-transmit_bytes)/(1024*1024))
   
     def read_input_file(self):
         """Reading the input file"""
@@ -156,7 +154,7 @@ class ObjectStoreBenchmark(object):
         """Write to csv file"""
         
         time_values = [x[0] for x in values]
-        io_values = [float(self.parse_args.size)/x for x in time_values]
+        io_values = [float(self.parse_args.size)*10.0/x for x in time_values]
         recvd_values = [x[1] for x in values]
         transmit_values = [x[2] for x in values]
         total_net_values = map(add, recvd_values, transmit_values)
