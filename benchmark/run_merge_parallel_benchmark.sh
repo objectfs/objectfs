@@ -1,7 +1,7 @@
 #!/bin/bash
 
-base_size=400
-iter_num=5
+base_size=640
+iter_num=1
 disrupt=10
 
 for num_thread in 1 2 4 8 16 32
@@ -49,11 +49,11 @@ do
   # degree = 21
   python merge_benchmark.py -b $base_size -d $disrupt -l 40 40 40 40 40 40 40 40 40 40 40 20 20 20 20 20 20 20 20 20 20 -i $iter_num -o 21 -t $num_thread
   # degree = 22
-  python merge_benchmark.py -b $base_size -d $disrupt -l 40 40 40 40 40 40 40 40 40 40 40 40 40 40 40 40 40 40 10 10 10 10 -i $iter_num -o 22 -t $num_thread
+  python merge_benchmark.py -b $base_size -d $disrupt -l 40 40 40 40 40 40 40 40 40 40 20 20 20 20 20 20 20 20 20 20 20 20 -i $iter_num -o 22 -t $num_thread
   # degree = 23
-  python merge_benchmark.py -b $base_size -d $disrupt -l 40 40 40 40 40 40 40 40 40 40 40 40 40 40 40 40 40 10 10 10 10 10 10 -i $iter_num -o 23 -t $num_thread
+  python merge_benchmark.py -b $base_size -d $disrupt -l 40 40 40 40 40 40 40 40 40 20 20 20 20 20 20 20 20 20 20 20 20 20 20 -i $iter_num -o 23 -t $num_thread
   # degree = 24
-  python merge_benchmark.py -b $base_size -d $disrupt -l 40 40 40 40 40 40 40 40 40 40 40 40 40 40 40 40 10 10 10 10 10 10 10 10 -i $iter_num -o 24 -t $num_thread
+  python merge_benchmark.py -b $base_size -d $disrupt -l 40 40 40 40 40 40 40 40 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 -i $iter_num -o 24 -t $num_thread
   # degree = 25
-  python merge_benchmark.py -b $base_size -d $disrupt -l 40 40 40 40 40 40 40 40 40 40 40 40 40 40 40 10 10 10 10 10 10 10 10 10 10 -i $iter_num -o 25 -t $num_thread
+  python merge_benchmark.py -b $base_size -d $disrupt -l 40 40 40 40 40 40 40 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 -i $iter_num -o 25 -t $num_thread
 done

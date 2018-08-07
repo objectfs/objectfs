@@ -71,7 +71,7 @@ class MergeBenchmark(object):
 
     def populate_files(self, inode_id):
         """Populate the files"""
-        block_set = Set(range(40))
+        block_set = Set(range(self.parse_args.base_size//10))
         # total_log_size = self.parse_args.dispersive_index*10
         for num_object in range(self.parse_args.num_log_objects):
             # this for mismatch log size with increasing degree
