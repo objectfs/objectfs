@@ -27,7 +27,7 @@ from operator import truediv, add
 from objectfs.core.data.objectstore import ObjectStoreFactory
 from objectfs.core.common.fragmentmap import FragmentMap
 from objectfs.core.common.mergequeue import MergeQueue
-from objectfs.core.cache.cachetask import merge_log_objects
+from objectfs.core.cache.cachetask import merge_log_objects, merge_log_objects_parallel
 from procnetdev import ProcNetDev
 
 BASE_SIZE = 400
@@ -92,7 +92,38 @@ class MergeBenchmark(object):
     
     
     def run(self):
-        self.merge(self.parse_args.iter)
+        # self.merge(self.parse_args.iter)
+        self.parallel_merge(self.parse_args.iter)
+    
+    def parallel_merge(self, iter_num):
+        """Run the parallel merge benchmark"""
+        run_time_list = []
+        recvd_bytes_list = []
+        transmit_bytes_list = []
+        for i in range(iter_num):
+            merge_list = []
+            inode_id = self.inode_id_list[0]
+            self.data_store.put_dnode(inode_id, self.base_data)
+            self.populate_files(inode_id)
+            
+            recvd_bytes = self.pnd['eth0']['receive']['bytes']
+            transmit_bytes = self.pnd['eth0']['transmit']['bytes']
+            start_time = time.time()
+            merge_log_objects_parallel(self.fs_name, inode_id, self.parse_args.num_threads) 
+            run_time_list.append(time.time()-start_time)
+            recvd_bytes_list.append(self.pnd['eth0']['receive']['bytes']-recvd_bytes)
+            transmit_bytes_list.append(self.pnd['eth0']['transmit']['bytes']-transmit_bytes)
+            
+            # cleaning queue
+            self.clean_queue()
+        
+        # write to csv file
+        self.write_time(run_time_list)
+        self.write_obps(map(truediv, [1]*self.parse_args.iter, run_time_list))
+        self.write_netbw([float(value)/(1024*1024) for value in recvd_bytes_list])
+        self.write_netbw([float(value)/(1024*1024) for value in transmit_bytes_list])
+        self.write_netbw([float(value)/(1024*1024) for value in map(add, recvd_bytes_list, transmit_bytes_list)])
+            
 
     def merge(self, iter_num):
         """Run the merge benchmark"""
@@ -132,17 +163,17 @@ class MergeBenchmark(object):
     
     def write_obps(self, values):
         """Write to objects per second file"""
-        file_name = "{}_{}_obps".format(self.parse_args.num_threads, self.parse_args.num_log_objects)
+        file_name = "{}_obps".format(self.parse_args.num_log_objects)
         self.write_csv(file_name, [self.parse_args.dispersive_index*10]+values)
 
     def write_netbw(self, values):
         """Write to network bandwidth file"""
-        file_name = "{}_{}_netbw".format(self.parse_args.num_threads, self.parse_args.num_log_objects)
+        file_name = "{}_netbw".format(self.parse_args.num_log_objects)
         self.write_csv(file_name, [self.parse_args.dispersive_index*10]+values)
 
     def write_time(self, values):
         """Write to timing file"""
-        file_name = "{}_{}_time".format(self.parse_args.num_threads, self.parse_args.num_log_objects)
+        file_name = "{}_time".format(self.parse_args.num_log_objects)
         self.write_csv(file_name, [self.parse_args.dispersive_index*10]+values)
         
     def write_csv(self, file_name, values):
