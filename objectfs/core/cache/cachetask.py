@@ -137,10 +137,12 @@ def merge_log_object_parallel_worker((fs_name, inode_id, block_index, block_id, 
     fragment_map = FragmentMap(fs_name)
     
     if block_index is None:
-        data = data_store.get_dnode(inode_id, int(block_id), log_object)
+        # data = data_store.get_dnode(inode_id, int(block_id), log_object)
+        return data_store.multipart_copy_dnode(inode_id, int(block_id), base_obj.id, inode_id, int(block_index))
     else:
-        data = data_store.get_dnode(inode_id, int(block_index), log_object)
-    return data_store.multipart_upload_dnode(inode_id, int(block_id), multipart_id, data)
+        # data = data_store.get_dnode(inode_id, int(block_index), log_object)
+        return data_store.multipart_copy_dnode(inode_id, int(block_id), base_obj.id, inode_id, int(block_id))
+    # return data_store.multipart_upload_dnode(inode_id, int(block_id), multipart_id, data)
     
 
 @job('default', connection=redis_client, timeout=100)
@@ -185,7 +187,9 @@ def merge_log_objects_parallel(fs_name, inode_id, num_threads=4):
     for job_result in job_result_list:
         etag_part_list.append({'ETag': job_result[0], 'PartNumber': job_result[1]})
     
-    etag_part_list.sort()
+    # etag_part_list.sort()
+    # from operator import itemgetter
+    etag_part_list = sorted(etag_part_list, key=itemgetter('PartNumber'))
     # complete multipart upload
     data_store.container.object(inode_id).complete_multipart_upload(base_obj.id, etag_part_list)
     # remove log object from object store and merge queue
