@@ -57,10 +57,3 @@ do
   # degree = 25
   python merge_benchmark.py -b $base_size -d $disrupt -l 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 10 10 10 10 10 10 10 10 10 10 -i $iter_num -o 25 -t $num_thread
 done
-
-  #for log_size in {1..10..1}
-  #do
-    #python merge_benchmark.py -d $log_size -l $(( log_size * 10 )) -i 5 -o 1 -t $num_thread
-  #done
-#done
-#python merge_benchmark.py -d 10 -l 100 -i 5 -o 1 -t $value
