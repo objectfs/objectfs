@@ -45,7 +45,7 @@ class MergeQueue(object):
         except Exception as e:
             raise e
 
-    def fetch(self, inode_id, start=0, end=5):
+    def fetch(self, inode_id, start=0, end=-1):
         try:
             log_object_list = self._client.lrange(self._queue_key(inode_id), start, end)
             for log_object in log_object_list:
