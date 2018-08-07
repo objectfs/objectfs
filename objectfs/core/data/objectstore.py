@@ -62,6 +62,10 @@ class ObjectStore(object):
         else:
             return self.container.object(inode_id).delete()
     
+    def multipart_copy_dnode(self, inode_id, object_block_id, multipart_id, copy_object_name, copy_offset):
+        """Copy a multipart part"""
+        return self.container.object(inode_id).copy_part(object_block_id, multipart_id, copy_object_name, copy_offset)
+
     def multipart_upload_dnode(self, inode_id, object_block_id, multipart_id, data, log_object_name=None):
         """Return the multipart for this inode"""
         logger.debug('MULTIPART Dnode for inode {}'.format(inode_id))

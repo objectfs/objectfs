@@ -239,6 +239,21 @@ class S3Object(DataObject):
         except Exception as e:
             logger.debug("Error in uploading MULTIPART {} part {} for object {} for S3 bucket {}".format(multipart_id, object_block_id+1, self.name, self.container.name, exc_info=True))
             raise e
+    
+    def copy_part(self, object_block_id, multipart_id, copy_object_name, copy_offset):
+        """Copy a multipart part"""
+        try:
+            response = self.fetch_multipart(multipart_id).Part(object_block_id+1).copy_from(
+                    CopySource={
+                            'Bucket': self.container.name,
+                            'Key': copy_object_name,
+                    },
+                    # CopySourceRange='bytes={}-{}'.format(copy_offset*settings.DATA_BLOCK_SIZE, (copy_offset+1)*settings.DATA_BLOCK_SIZE)
+            )
+            return (response['CopyPartResult']['ETag'].strip('""'), object_block_id+1)
+        except Exception as e:
+            raise e
+                    
 
     def complete_multipart_upload(self, multipart_id, etag_part_list):
         """Complete a multipart upload"""
