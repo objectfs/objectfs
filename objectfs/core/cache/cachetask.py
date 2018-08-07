@@ -104,9 +104,9 @@ def merge_log_objects(fs_name, inode_id):
             # fetch from block_index since it determines where the block lives in that log object
             block_index = block_id_list.index(block_id)
             print("Log:", block_id)
-            # data = data_store.get_dnode(inode_id, int(block_index), log_object)
-            # job_result = data_store.multipart_upload_dnode(inode_id, int(block_id), base_obj.id, data)
-            job_result = data_store.multipart_copy_dnode(inode_id, int(block_id), base_obj.id, log_object, int(block_index))
+            data = data_store.get_dnode(inode_id, int(block_index), log_object)
+            job_result = data_store.multipart_upload_dnode(inode_id, int(block_id), base_obj.id, data)
+            # job_result = data_store.multipart_copy_dnode(inode_id, int(block_id), base_obj.id, log_object, int(block_index))
             etag_part_list.append({'ETag': job_result[0], 'PartNumber': job_result[1]})
 
         object_id_set = object_id_set.union(log_object_set)
@@ -114,15 +114,15 @@ def merge_log_objects(fs_name, inode_id):
     # upload the remaining from the base object
     base_obj_set = Set(range(data_store.dnode_size(inode_id)//settings.DATA_BLOCK_SIZE))
     for block_id in base_obj_set.symmetric_difference(object_id_set):
-        # data = data_store.get_dnode(inode_id, int(block_id))
+        data = data_store.get_dnode(inode_id, int(block_id))
         print("Base:", block_id)
-        # job_result = data_store.multipart_upload_dnode(inode_id, int(block_id), base_obj.id, data)
-        job_result = data_store.multipart_copy_dnode(inode_id, int(block_id), base_obj.id, inode_id, int(block_id))
+        job_result = data_store.multipart_upload_dnode(inode_id, int(block_id), base_obj.id, data)
+        # job_result = data_store.multipart_copy_dnode(inode_id, int(block_id), base_obj.id, inode_id, int(block_id))
         etag_part_list.append({'ETag': job_result[0], 'PartNumber': job_result[1]})
 
-    # etag_part_list.sort()
-    from operator import itemgetter
-    etag_part_list = sorted(etag_part_list, key=itemgetter('PartNumber'))
+    etag_part_list.sort()
+    # from operator import itemgetter
+    # etag_part_list = sorted(etag_part_list, key=itemgetter('PartNumber'))
     # complete multipart upload
     data_store.container.object(inode_id).complete_multipart_upload(base_obj.id, etag_part_list)
     # remove log object from object store and merge queue
