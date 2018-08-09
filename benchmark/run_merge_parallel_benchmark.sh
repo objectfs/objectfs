@@ -1,7 +1,7 @@
 #!/bin/bash
 
 base_size=640
-iter_num=1
+iter_num=5
 disrupt=10
 
 for num_thread in 1 2 4 8 16 32

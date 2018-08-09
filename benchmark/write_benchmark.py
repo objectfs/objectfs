@@ -33,7 +33,7 @@ from objectfs.core.cache.cachetask import merge_log_objects
 from procnetdev import ProcNetDev
 
 NUM_ITER = 5
-FS_NAME = 'kunalfs'
+FS_NAME = 'kunalfs2'
 RANDOM_PERCENT = 100
 
 def merge_log_objects_wrapper((fs_name, inode_id)):
@@ -66,18 +66,18 @@ class WriteBenchmark(object):
 
     def write(self, iter_num):
         """Run the write benchmark"""
-        for random_percent in  range(10, 110, 10):
+        for random_percent in  range(100, 110, 10):
             recvd_bytes_list = []
             transmit_bytes_list = []
             io_bw_list = []
             for i in range(iter_num):
-                recvd_bytes = self.pnd['eth0']['receive']['bytes']
-                transmit_bytes = self.pnd['eth0']['transmit']['bytes']
+                recvd_bytes = self.pnd['ens5']['receive']['bytes']
+                transmit_bytes = self.pnd['ens5']['transmit']['bytes']
                 p = subprocess.Popen(["fio", "fio_write_{}".format(random_percent), "--output-format=json"], stdout=subprocess.PIPE)
                 output, err = p.communicate()
                 io_bw_list.append(float(json.loads(output)['jobs'][0]['write']['bw'])/1024)
-                recvd_bytes_list.append(self.pnd['eth0']['receive']['bytes']-recvd_bytes)
-                transmit_bytes_list.append(self.pnd['eth0']['transmit']['bytes']-transmit_bytes)
+                recvd_bytes_list.append(self.pnd['ens5']['receive']['bytes']-recvd_bytes)
+                transmit_bytes_list.append(self.pnd['ens5']['transmit']['bytes']-transmit_bytes)
                 self.clean_cache()
             # write to csv file
             self.write_io(io_bw_list)

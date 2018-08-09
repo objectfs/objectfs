@@ -33,9 +33,9 @@ from procnetdev import ProcNetDev
 BASE_SIZE = 400
 LOG_SIZE = 40
 NUM_ITER = 5
-FS_NAME = 'kunalfs'
+FS_NAME = 'kunalfs2'
 NUM_THREADS = 1
-INODE_ID_LIST = range(71, 100, 1)
+INODE_ID_LIST = range(71, 150, 1)
 DISPERSIVE_INDEX = 4
 NUM_LOG_OBJECTS = 1
 
@@ -85,6 +85,7 @@ class MergeBenchmark(object):
                 block_set.remove(block_id)
             log_object_index = self.fragment_map._log_key(inode_id, block_id_list, int(time.time()))
             self.merge_queue.insert(inode_id, log_object_index)
+	    print(inode_id, log_object_index)
             self.log_data = self.read_input_file(self.parse_args.log_size[num_object])
             self.data_store.put_dnode(inode_id, self.log_data, log_object_index)
             # keeping track of log sizes written
@@ -106,13 +107,13 @@ class MergeBenchmark(object):
             self.data_store.put_dnode(inode_id, self.base_data)
             self.populate_files(inode_id)
             
-            recvd_bytes = self.pnd['eth0']['receive']['bytes']
-            transmit_bytes = self.pnd['eth0']['transmit']['bytes']
+            recvd_bytes = self.pnd['ens5']['receive']['bytes']
+            transmit_bytes = self.pnd['ens5']['transmit']['bytes']
             start_time = time.time()
             merge_log_objects_parallel(self.fs_name, inode_id, self.parse_args.num_threads) 
             run_time_list.append(time.time()-start_time)
-            recvd_bytes_list.append(self.pnd['eth0']['receive']['bytes']-recvd_bytes)
-            transmit_bytes_list.append(self.pnd['eth0']['transmit']['bytes']-transmit_bytes)
+            recvd_bytes_list.append(self.pnd['ens5']['receive']['bytes']-recvd_bytes)
+            transmit_bytes_list.append(self.pnd['ens5']['transmit']['bytes']-transmit_bytes)
             
             # cleaning queue
             self.clean_queue()
@@ -139,13 +140,13 @@ class MergeBenchmark(object):
                 merge_list.append((self.fs_name, inode_id))
             
             pool = multiprocessing.Pool(self.parse_args.num_threads)
-            recvd_bytes = self.pnd['eth0']['receive']['bytes']
-            transmit_bytes = self.pnd['eth0']['transmit']['bytes']
+            recvd_bytes = self.pnd['ens5']['receive']['bytes']
+            transmit_bytes = self.pnd['ens5']['transmit']['bytes']
             start_time = time.time()
             pool.map(merge_log_objects_wrapper, merge_list)
             run_time_list.append(time.time()-start_time)
-            recvd_bytes_list.append(self.pnd['eth0']['receive']['bytes']-recvd_bytes)
-            transmit_bytes_list.append(self.pnd['eth0']['transmit']['bytes']-transmit_bytes)
+            recvd_bytes_list.append(self.pnd['ens5']['receive']['bytes']-recvd_bytes)
+            transmit_bytes_list.append(self.pnd['ens5']['transmit']['bytes']-transmit_bytes)
             pool.close()
             # cleaning queue
             self.clean_queue()
