@@ -33,7 +33,7 @@ from procnetdev import ProcNetDev
 BASE_SIZE = 400
 LOG_SIZE = 40
 NUM_ITER = 5
-FS_NAME = 'kunalfs'
+FS_NAME = 'kunalfs2'
 NUM_THREADS = 1
 INODE_ID_LIST = range(71, 100, 1)
 DISPERSIVE_INDEX = 4
@@ -42,6 +42,10 @@ NUM_LOG_OBJECTS = 1
 def merge_log_objects_wrapper((fs_name, inode_id)):
     merge_log_objects(fs_name, inode_id)
 
+def populate_files_woker((fs_name, inode_id, log_object_index, data)):
+    # create data store
+    data_store = ObjectStoreFactory.create_store(fs_name)
+    data_store.put_dnode(inode_id, data, log_object_index)
 
 class MergeBenchmark(object):
 
@@ -72,6 +76,7 @@ class MergeBenchmark(object):
     def populate_files(self, inode_id):
         """Populate the files"""
         block_set = Set(range(self.parse_args.base_size//10))
+        args_list = []
         # total_log_size = self.parse_args.dispersive_index*10
         for num_object in range(self.parse_args.num_log_objects):
             # this for mismatch log size with increasing degree
@@ -86,14 +91,18 @@ class MergeBenchmark(object):
             log_object_index = self.fragment_map._log_key(inode_id, block_id_list, int(time.time()))
             self.merge_queue.insert(inode_id, log_object_index)
             self.log_data = self.read_input_file(self.parse_args.log_size[num_object])
-            self.data_store.put_dnode(inode_id, self.log_data, log_object_index)
+            args_list.append((self.fs_name, inode_id, log_object_index, self.log_data))
+            # self.data_store.put_dnode(inode_id, self.log_data, log_object_index)
             # keeping track of log sizes written
             # total_log_size = total_log_size - self.parse_args.log_size
+        pool = multiprocessing.Pool(16)
+        pool.map(populate_files_woker, args_list)
+        pool.close()
     
     
     def run(self):
-        # self.merge(self.parse_args.iter)
-        self.parallel_merge(self.parse_args.iter)
+        self.merge(self.parse_args.iter)
+        # self.parallel_merge(self.parse_args.iter)
     
     def parallel_merge(self, iter_num):
         """Run the parallel merge benchmark"""
