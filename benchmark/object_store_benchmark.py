@@ -26,17 +26,17 @@ import boto3.s3.transfer as transfer
 from objectfs.core.data.objectstore import ObjectStoreFactory
 import csv
 
-FILE_SIZE = 30
-NUM_ITER = 6
+FILE_SIZE = 16
+NUM_ITER = 5
 NUM_PROC = 4
-BUCKET_NAME = 'kunalfs2'
-
+BUCKET_NAME = 'kunalfs'
+NUM_FILES = 50
 
 def multipart_upload_task((fs_name, object_name, block_id, multipart_id, data)):
     data_store = ObjectStoreFactory.create_store(fs_name)
-    start_time = time.time()
+    # start_time = time.time()
     value = data_store.multipart_upload_dnode(object_name, block_id, multipart_id, data)
-    print(time.time()-start_time)
+    # print(time.time()-start_time)
     return value
 
 class ObjectStoreBenchmark(object):
@@ -114,7 +114,7 @@ class ObjectStoreBenchmark(object):
         
         pool = multiprocessing.Pool(processes=self.parse_args.num)
         # block_size = (self.parse_args.size*1024*1024)/self.parse_args.num
-        block_size = (10485760*1)
+        block_size = (16777216*1)
         data = self.read_input_file()
         # config = transfer.TransferConfig(multipart_threshold = 1, 
                                 # max_concurrency = self.parse_args.num,
@@ -126,7 +126,7 @@ class ObjectStoreBenchmark(object):
         transmit_bytes = self.pnd['ens5']['transmit']['bytes']
         start_time = time.time()
         # self.data_store.container.object(self.parse_args.object_name+str(iter_num)).upload_fileobj(data, config=config)
-	for i in range(10):
+        for i in range(self.parse_args.num_files):
             etag_part_list = []
             args_list = []
             object_name = str(iter_num)+'_'+str(i)+'_'+self.parse_args.object_name
@@ -147,14 +147,14 @@ class ObjectStoreBenchmark(object):
     def read_input_file(self):
         """Reading the input file"""
         # input_file = open("{}".format(self.parse_args.size), 'r')
-        input_file = open("{}".format(10), 'r')
+        input_file = open("{}".format(16), 'r')
         return input_file.read()
     
     def write_csv(self, values):
         """Write to csv file"""
         
         time_values = [x[0] for x in values]
-        io_values = [float(self.parse_args.size)*10.0/x for x in time_values]
+        io_values = [float(self.parse_args.size)*self.parse_args.num_files/x for x in time_values]
         recvd_values = [x[1] for x in values]
         transmit_values = [x[2] for x in values]
         total_net_values = map(add, recvd_values, transmit_values)
@@ -200,6 +200,7 @@ class ObjectStoreBenchmark(object):
         # multipart upload
         upload_parser = sub_parsers.add_parser('upload', help='Run the multipart upload')
         upload_parser.add_argument('-n', '--num', type=int, default=NUM_PROC, help='Processes to run for the test. Default:{}'.format(NUM_PROC)) 
+        upload_parser.add_argument('-m', '--num_files', type=int, default=NUM_FILES, help='Number of files to upload. Default:{}'.format(NUM_PROC)) 
         upload_parser.set_defaults(func=self.multipart_upload)
         
         return parser.parse_args()
