@@ -30,7 +30,7 @@ from objectfs.core.common.mergequeue import MergeQueue
 from objectfs.core.cache.cachetask import merge_log_objects, merge_log_objects_parallel
 from procnetdev import ProcNetDev
 
-BASE_SIZE = 400
+BASE_SIZE = 1600
 LOG_SIZE = 40
 NUM_ITER = 5
 FS_NAME = 'kunalfs2'
@@ -38,6 +38,7 @@ NUM_THREADS = 1
 INODE_ID_LIST = range(71, 150, 1)
 DISPERSIVE_INDEX = 4
 NUM_LOG_OBJECTS = 1
+NUM_FILES = 64
 
 def merge_log_objects_wrapper((fs_name, inode_id)):
     merge_log_objects(fs_name, inode_id)
@@ -90,13 +91,13 @@ class MergeBenchmark(object):
                 block_set.remove(block_id)
             log_object_index = self.fragment_map._log_key(inode_id, block_id_list, int(time.time()))
             self.merge_queue.insert(inode_id, log_object_index)
-	    print(inode_id, log_object_index)
+            print(inode_id, log_object_index)
             self.log_data = self.read_input_file(self.parse_args.log_size[num_object])
             args_list.append((self.fs_name, inode_id, log_object_index, self.log_data))
             # self.data_store.put_dnode(inode_id, self.log_data, log_object_index)
             # keeping track of log sizes written
             # total_log_size = total_log_size - self.parse_args.log_size
-        pool = multiprocessing.Pool(16)
+        pool = multiprocessing.Pool(32)
         pool.map(populate_files_woker, args_list)
         pool.close()
     
@@ -142,8 +143,8 @@ class MergeBenchmark(object):
         transmit_bytes_list = []
         for i in range(iter_num):
             merge_list = []
-            for num_thread in range(self.parse_args.num_threads):
-                inode_id = self.inode_id_list[num_thread]
+            for file_num in range(NUM_FILES):
+                inode_id = self.inode_id_list[file_num]
                 self.data_store.put_dnode(inode_id, self.base_data)
                 self.populate_files(inode_id)
                 merge_list.append((self.fs_name, inode_id))
