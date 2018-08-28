@@ -66,21 +66,27 @@ class WriteBenchmark(object):
 
     def write(self, iter_num):
         """Run the write benchmark"""
-        for random_percent in  range(100, 110, 10):
+        for random_percent in  range(80, 110, 10):
             recvd_bytes_list = []
             transmit_bytes_list = []
             io_bw_list = []
+            time_list = []
             for i in range(iter_num):
                 recvd_bytes = self.pnd['ens5']['receive']['bytes']
                 transmit_bytes = self.pnd['ens5']['transmit']['bytes']
+		# start_time = time.time()
                 p = subprocess.Popen(["fio", "fio_write_{}".format(random_percent), "--output-format=json"], stdout=subprocess.PIPE)
                 output, err = p.communicate()
+		# end_time = time.time()-start_time
+		# io_bw_list.append((random_percent*1280.0*25.0)/(end_time*100))
+		# time_list.append(end_time)
                 io_bw_list.append(float(json.loads(output)['jobs'][0]['write']['bw'])/1024)
                 recvd_bytes_list.append(self.pnd['ens5']['receive']['bytes']-recvd_bytes)
                 transmit_bytes_list.append(self.pnd['ens5']['transmit']['bytes']-transmit_bytes)
                 self.clean_cache()
             # write to csv file
             self.write_io(io_bw_list)
+            self.write_time(time_list)
             self.write_netbw([float(value)/(1024*1024) for value in recvd_bytes_list])
             self.write_netbw([float(value)/(1024*1024) for value in transmit_bytes_list])
             self.write_netbw([float(value)/(1024*1024) for value in map(add, recvd_bytes_list, transmit_bytes_list)])
@@ -104,8 +110,8 @@ class WriteBenchmark(object):
 
     def write_time(self, values):
         """Write to timing file"""
-        file_name = "{}_{}_time".format(self.parse_args.num_threads, self.parse_args.num_log_objects)
-        self.write_csv(file_name, [self.parse_args.log_size]+values)
+        file_name = "time"
+        self.write_csv(file_name, values)
         
     def write_csv(self, file_name, values):
         """Write to csv file"""

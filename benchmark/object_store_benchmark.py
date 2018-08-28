@@ -30,7 +30,7 @@ FILE_SIZE = 16
 NUM_ITER = 5
 NUM_PROC = 4
 BUCKET_NAME = 'kunalfs'
-NUM_FILES = 50
+NUM_FILES = 25
 
 def multipart_upload_task((fs_name, object_name, block_id, multipart_id, data)):
     data_store = ObjectStoreFactory.create_store(fs_name)

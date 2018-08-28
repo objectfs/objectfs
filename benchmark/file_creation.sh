@@ -1,6 +1,8 @@
 #!/bin/bash
 
-for value in {1..10}
+base=test
+
+for value in {1..25}
 do
-  dd of=/data/kunalfs/test$value if=/dev/zero bs=1M count=400
+  dd of=/data/kunalfs/$value$base if=/dev/zero bs=1M count=1280
 done  
