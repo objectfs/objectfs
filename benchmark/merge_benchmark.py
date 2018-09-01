@@ -103,8 +103,8 @@ class MergeBenchmark(object):
     
     
     def run(self):
-        self.merge(self.parse_args.iter)
-        # self.parallel_merge(self.parse_args.iter)
+        # self.merge(self.parse_args.iter)
+        self.parallel_merge(self.parse_args.iter)
     
     def parallel_merge(self, iter_num):
         """Run the parallel merge benchmark"""
@@ -113,14 +113,16 @@ class MergeBenchmark(object):
         transmit_bytes_list = []
         for i in range(iter_num):
             merge_list = []
-            inode_id = self.inode_id_list[0]
-            self.data_store.put_dnode(inode_id, self.base_data)
-            self.populate_files(inode_id)
+            for file_num in range(NUM_FILES):
+                inode_id = self.inode_id_list[file_num]
+                # self.data_store.put_dnode(inode_id, self.base_data)
+                self.populate_files(inode_id)
             
             recvd_bytes = self.pnd['ens5']['receive']['bytes']
             transmit_bytes = self.pnd['ens5']['transmit']['bytes']
             start_time = time.time()
-            merge_log_objects_parallel(self.fs_name, inode_id, self.parse_args.num_threads) 
+            for file_num in range(NUM_FILES):
+                merge_log_objects_parallel(self.fs_name, inode_id, self.parse_args.num_threads) 
             run_time_list.append(time.time()-start_time)
             recvd_bytes_list.append(self.pnd['ens5']['receive']['bytes']-recvd_bytes)
             transmit_bytes_list.append(self.pnd['ens5']['transmit']['bytes']-transmit_bytes)
