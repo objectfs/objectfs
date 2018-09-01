@@ -76,7 +76,7 @@ class MergeBenchmark(object):
 
     def populate_files(self, inode_id):
         """Populate the files"""
-        block_set = Set(range(self.parse_args.base_size//10))
+        block_set = Set(range(self.parse_args.base_size//16))
         args_list = []
         # total_log_size = self.parse_args.dispersive_index*10
         for num_object in range(self.parse_args.num_log_objects):
@@ -85,7 +85,7 @@ class MergeBenchmark(object):
                 # self.parse_args.log_size = total_log_size
                 # self.log_data = self.read_input_file(self.parse_args.log_size)
             block_id_list = []
-            for block_iter in range(self.parse_args.log_size[num_object]//10):
+            for block_iter in range(self.parse_args.log_size[num_object]//16):
                 block_id = random.choice(list(block_set))
                 block_id_list.append(block_id)
                 block_set.remove(block_id)
@@ -98,7 +98,7 @@ class MergeBenchmark(object):
             # keeping track of log sizes written
             # total_log_size = total_log_size - self.parse_args.log_size
         pool = multiprocessing.Pool(32)
-        pool.map(populate_files_woker, args_list)
+	pool.map(populate_files_woker, args_list)
         pool.close()
     
     
@@ -145,7 +145,7 @@ class MergeBenchmark(object):
             merge_list = []
             for file_num in range(NUM_FILES):
                 inode_id = self.inode_id_list[file_num]
-                self.data_store.put_dnode(inode_id, self.base_data)
+                # self.data_store.put_dnode(inode_id, self.base_data)
                 self.populate_files(inode_id)
                 merge_list.append((self.fs_name, inode_id))
             
@@ -162,7 +162,7 @@ class MergeBenchmark(object):
             self.clean_queue()
         # write to csv file
         self.write_time(run_time_list)
-        self.write_obps(map(truediv, [self.parse_args.num_threads]*self.parse_args.iter, run_time_list))
+        self.write_obps(map(truediv, [NUM_FILES]*self.parse_args.iter, run_time_list))
         self.write_netbw([float(value)/(1024*1024) for value in recvd_bytes_list])
         self.write_netbw([float(value)/(1024*1024) for value in transmit_bytes_list])
         self.write_netbw([float(value)/(1024*1024) for value in map(add, recvd_bytes_list, transmit_bytes_list)])
@@ -174,18 +174,18 @@ class MergeBenchmark(object):
     
     def write_obps(self, values):
         """Write to objects per second file"""
-        file_name = "{}_obps".format(self.parse_args.num_log_objects)
-        self.write_csv(file_name, [self.parse_args.dispersive_index*10]+values)
+        file_name = "obps"
+        self.write_csv(file_name, [self.parse_args.num_log_objects]+values)
 
     def write_netbw(self, values):
         """Write to network bandwidth file"""
-        file_name = "{}_netbw".format(self.parse_args.num_log_objects)
-        self.write_csv(file_name, [self.parse_args.dispersive_index*10]+values)
+        file_name = "netbw"
+        self.write_csv(file_name, [self.parse_args.num_log_objects]+values)
 
     def write_time(self, values):
         """Write to timing file"""
-        file_name = "{}_time".format(self.parse_args.num_log_objects)
-        self.write_csv(file_name, [self.parse_args.dispersive_index*10]+values)
+        file_name = "time"
+        self.write_csv(file_name, [self.parse_args.num_log_objects]+values)
         
     def write_csv(self, file_name, values):
         """Write to csv file"""
