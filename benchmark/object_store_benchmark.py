@@ -39,6 +39,13 @@ def multipart_upload_task((fs_name, object_name, block_id, multipart_id, data)):
     # print(time.time()-start_time)
     return value
 
+def multipart_download_task((fs_name, object_name, block_id)):
+    data_store = ObjectStoreFactory.create_store(fs_name)
+    # start_time = time.time()
+    value = data_store.get_dnode(object_name, object_block_id=block_id)
+    # print(time.time()-start_time)
+    # return value
+
 class ObjectStoreBenchmark(object):
 
     def __init__(self):
@@ -49,6 +56,7 @@ class ObjectStoreBenchmark(object):
         for iter_num in range(self.parse_args.iter):
           values.append(self.parse_args.func(iter_num))
           time.sleep(3)
+        import pdb; pdb.set_trace()
         self.write_csv(values)
 
     
@@ -96,18 +104,33 @@ class ObjectStoreBenchmark(object):
     def multipart_download(self, iter_num):
         """Multi-part download"""
         
-        block_size = (self.parse_args.size*1024*1024)/self.parse_args.num
-        config = transfer.TransferConfig(multipart_threshold = 1, 
-                                max_concurrency = self.parse_args.num,
-                                multipart_chunksize = block_size,
-                                max_io_queue = 1000,
-                                io_chunksize = block_size,
-                                use_threads = True)
+        pool = multiprocessing.Pool(processes=self.parse_args.num)
+        block_size = (16777216*1)
+        data = self.read_input_file()
+        # block_size = (self.parse_args.size*1024*1024)/self.parse_args.num
+        # config = transfer.TransferConfig(multipart_threshold = 1, 
+                                # max_concurrency = self.parse_args.num,
+                                # multipart_chunksize = block_size,
+                                # max_io_queue = 1000,
+                                # io_chunksize = block_size,
+                                # use_threads = True)
+        recvd_bytes = self.pnd['ens5']['receive']['bytes']
+        transmit_bytes = self.pnd['ens5']['transmit']['bytes']
         start_time = time.time()
-        self.data_store.container.object(self.parse_args.object_name+str(iter_num)).download_fileobj(config=config)
+        args_list = []
+        for i in range(1, self.parse_args.num_files+1, 1):
+            object_name = str(i)+self.parse_args.object_name
+            print(object_name)
+            for block_id in range(0, (self.parse_args.size*1024*1024)//block_size, 1):
+                args_list.append((self.parse_args.bucket, object_name, block_id))
+        pool.map(multipart_download_task, args_list)
+        # self.data_store.container.object(self.parse_args.object_name+str(iter_num)).download_fileobj(config=config)
         end_time = time.time()
-        print("{}".format(iter_num, end_time-start_time))
-        self.write_csv([end_time-start_time])
+        pool.close()
+        self.pnd['ens5']['receive']['bytes']-recvd_bytes
+        self.pnd['ens5']['transmit']['bytes']-transmit_bytes
+        print("{}".format(end_time-start_time))
+        return (end_time-start_time, float(self.pnd['ens5']['receive']['bytes']-recvd_bytes)/(1024*1024), float(self.pnd['ens5']['transmit']['bytes']-transmit_bytes)/(1024*1024))
     
     def multipart_upload(self, iter_num):
         """Multi-part upload"""
@@ -195,6 +218,7 @@ class ObjectStoreBenchmark(object):
         # multipart download
         download_parser = sub_parsers.add_parser('download', help='Run the multipart download')
         download_parser.add_argument('-n', '--num', type=int, default=NUM_PROC, help='Processes to run for the test. Default:{}'.format(NUM_PROC)) 
+        download_parser.add_argument('-m', '--num_files', type=int, default=NUM_FILES, help='Number of files to upload. Default:{}'.format(NUM_PROC)) 
         download_parser.set_defaults(func=self.multipart_download)
         
         # multipart upload
