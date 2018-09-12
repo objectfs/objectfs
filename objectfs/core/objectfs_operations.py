@@ -575,6 +575,7 @@ class ObjectFsOperationsCache(ObjectFsOperations):
     
     def write(self, inode_id, offset, buf):
         """Write a file"""
+        print(offset)
         super(self.__class__, self).write(inode_id, offset, buf)
         inode = self._meta_store.get_inode(inode_id)
         data_size = inode.size
@@ -611,7 +612,9 @@ class ObjectFsOperationsMultipart(ObjectFsOperations):
         import collections
         from sets import Set
         self._local_dirty_set = collections.defaultdict(Set)
+        self._local_clean_set = collections.defaultdict(Set)
         self._local_fragment_map = collections.defaultdict(list)
+        self._pool = Pool(processes=4)
     
     
     def setattr(self, inode_id, attr, fields, fh, ctx):
@@ -622,6 +625,11 @@ class ObjectFsOperationsMultipart(ObjectFsOperations):
         """Open the file using inode id"""
         object_block_id = 0
         inode = self._meta_store.get_inode(inode_id)
+
+        # copy fragment map into local map
+        # for fragment in self._fragment_map.get_fragment(inode_id, block_id):
+            # flush_time, block_listlog_object_name.split(NAME_DELIMITER)[0]
+            # self._local_fragment_map[inode_id].append()
 
         # if self._cache_store.exists_inode(inode_id, object_block_id):
             # pass
@@ -648,12 +656,23 @@ class ObjectFsOperationsMultipart(ObjectFsOperations):
         object_block_id = off // settings.DATA_BLOCK_SIZE
         new_off = off - (object_block_id*settings.DATA_BLOCK_SIZE)
         # check if object block exists in cache
-        while True:
-            if self._cache_store.exists_inode(inode_id, object_block_id):
-                data = self._cache_store.read_inode(inode_id, new_off, size, object_block_id)
-                break
-            else:
-              continue
+        if self._cache_store.exists_inode(inode_id, object_block_id):
+            data = self._cache_store.read_inode(inode_id, new_off, size, object_block_id)
+        else:
+            # self._dirty_set.read()
+            from objectfs.core.cache.cachetask import prefetch_object_block
+            prefetch_list = []
+            for new_id in range(object_block_id+1, inode.size//settings.DATA_BLOCK_SIZE, 1):
+                prefetch_list.append((self.fs_name, inode_id, new_id))
+            self._pool.map_async(prefetch_object_block, prefetch_list)
+            
+            data = self._data_store.get_dnode(inode_id, object_block_id)
+            self._cache_store.put_inode(inode_id, data, object_block_id=object_block_id)
+            data = data[new_off:size]
+
+            # fetch 4 blocks into cache same as s3fs
+            # insert into clean set
+            # update fragment map
         # else:
             # # enqueue a job to fetch the object block
             # job = self._cache_queue.enqueue_download_task(inode_id, new_off, size, object_block_id)
@@ -673,6 +692,7 @@ class ObjectFsOperationsMultipart(ObjectFsOperations):
     
     def write(self, inode_id, offset, buf):
         """Write a file"""
+        print(offset)
         super(self.__class__, self).write(inode_id, offset, buf)
         inode = self._meta_store.get_inode(inode_id)
         object_block_id = offset // settings.DATA_BLOCK_SIZE
@@ -746,7 +766,7 @@ class ObjectFsOperationsMultipart(ObjectFsOperations):
         self._dirty_set.remove(inode_id, block_list)
         self._clean_set.add(inode_id, block_list)
         # intiate merge task for inode
-        # self._cache_queue.enqueue_merge_task(inode_id)
+        self._cache_queue.enqueue_merge_task(inode_id)
 
         # # contains the list of jobs which we have launched
         # job_list = []
@@ -777,8 +797,8 @@ class ObjectFsOperationsMultipart(ObjectFsOperations):
         inode.open_count -= 1
         
         # check if the file is open or not
-        # if inode.open_count == 0:
-            # self._sync(inode_id)
+        if inode.open_count == 0:
+            self._sync(inode_id)
 
 class ObjectFsOperationsFactory(object):
     
