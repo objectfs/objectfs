@@ -41,7 +41,9 @@ NUM_LOG_OBJECTS = 1
 NUM_FILES = 64
 
 def merge_log_objects_wrapper((fs_name, inode_id)):
+    start_time = time.time()
     merge_log_objects(fs_name, inode_id)
+    return time.time()-start_time
 
 def populate_files_woker((fs_name, inode_id, log_object_index, data)):
     # create data store
@@ -153,8 +155,8 @@ class MergeBenchmark(object):
             recvd_bytes = self.pnd['ens5']['receive']['bytes']
             transmit_bytes = self.pnd['ens5']['transmit']['bytes']
             start_time = time.time()
-            pool.map(merge_log_objects_wrapper, merge_list)
-            run_time_list.append(time.time()-start_time)
+            values = pool.map(merge_log_objects_wrapper, merge_list)
+            run_time_list.append(values)
             recvd_bytes_list.append(self.pnd['ens5']['receive']['bytes']-recvd_bytes)
             transmit_bytes_list.append(self.pnd['ens5']['transmit']['bytes']-transmit_bytes)
             pool.close()
