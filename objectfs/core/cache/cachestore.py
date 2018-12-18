@@ -171,7 +171,7 @@ class FileCacheStore(CacheStore):
             print(e)
             raise e
         finally:
-            os.close(file_descp)
+	    os.close(file_descp)
 
     def read_inode(self, inode_id, offset, size, object_block_id=None):
         """Read an inode from cache"""
