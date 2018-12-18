@@ -575,7 +575,6 @@ class ObjectFsOperationsCache(ObjectFsOperations):
     
     def write(self, inode_id, offset, buf):
         """Write a file"""
-        print(offset)
         super(self.__class__, self).write(inode_id, offset, buf)
         inode = self._meta_store.get_inode(inode_id)
         data_size = inode.size
@@ -615,7 +614,7 @@ class ObjectFsOperationsMultipart(ObjectFsOperations):
         self._local_clean_set = collections.defaultdict(Set)
         self._local_fragment_map = collections.defaultdict(list)
         self._pool = Pool(processes=4)
-    
+
     
     def setattr(self, inode_id, attr, fields, fh, ctx):
         """Change the attributes of an inode"""
@@ -662,9 +661,10 @@ class ObjectFsOperationsMultipart(ObjectFsOperations):
             # self._dirty_set.read()
             from objectfs.core.cache.cachetask import prefetch_object_block
             prefetch_list = []
-            for new_id in range(object_block_id+1, inode.size//settings.DATA_BLOCK_SIZE, 1):
-                prefetch_list.append((self.fs_name, inode_id, new_id))
-            self._pool.map_async(prefetch_object_block, prefetch_list)
+            if object_block_id == 0:
+                for new_id in range(object_block_id+1, inode.size//settings.DATA_BLOCK_SIZE, 1):
+                    prefetch_list.append((self.fs_name, inode_id, new_id))
+                self._pool.map_async(prefetch_object_block, prefetch_list)
             
             data = self._data_store.get_dnode(inode_id, object_block_id)
             self._cache_store.put_inode(inode_id, data, object_block_id=object_block_id)
@@ -692,7 +692,6 @@ class ObjectFsOperationsMultipart(ObjectFsOperations):
     
     def write(self, inode_id, offset, buf):
         """Write a file"""
-        print(offset)
         super(self.__class__, self).write(inode_id, offset, buf)
         inode = self._meta_store.get_inode(inode_id)
         object_block_id = offset // settings.DATA_BLOCK_SIZE
@@ -766,7 +765,7 @@ class ObjectFsOperationsMultipart(ObjectFsOperations):
         self._dirty_set.remove(inode_id, block_list)
         self._clean_set.add(inode_id, block_list)
         # intiate merge task for inode
-        self._cache_queue.enqueue_merge_task(inode_id)
+        # self._cache_queue.enqueue_merge_task(inode_id)
 
         # # contains the list of jobs which we have launched
         # job_list = []
@@ -787,7 +786,7 @@ class ObjectFsOperationsMultipart(ObjectFsOperations):
                     # # remove job from list
                     # job_list.remove(job)
         # # complete the multipart upload
-        # self._data_store.container.object(str(inode_id)).complete_multipart_upload(multi_part_obj.id, etag_part_list)
+         self._data_store.container.object(str(inode_id)).complete_multipart_upload(multi_part_obj.id, etag_part_list)
 
     def release(self, inode_id):
         """Relase a file"""
@@ -797,8 +796,8 @@ class ObjectFsOperationsMultipart(ObjectFsOperations):
         inode.open_count -= 1
         
         # check if the file is open or not
-        if inode.open_count == 0:
-            self._sync(inode_id)
+        # if inode.open_count == 0:
+            # self._sync(inode_id)
 
 class ObjectFsOperationsFactory(object):
     
