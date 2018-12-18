@@ -56,7 +56,6 @@ class ObjectStoreBenchmark(object):
         for iter_num in range(self.parse_args.iter):
           values.append(self.parse_args.func(iter_num))
           time.sleep(3)
-        import pdb; pdb.set_trace()
         self.write_csv(values)
 
     

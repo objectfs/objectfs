@@ -59,14 +59,17 @@ class WriteBenchmark(object):
   
     def clean_cache(self):
         """Clean cache"""
+        print("Cleaning Cache")
         subprocess.call(["rm", "-rf", "/data/ramdisk/{}/".format(self.fs_name)])
+        subprocess.call(["rm", "-rf", "/data/ramdisk/*"])
     
     def run(self):
         self.write(self.parse_args.iter)
 
     def write(self, iter_num):
         """Run the write benchmark"""
-        for random_percent in  range(80, 110, 10):
+        for random_percent in  range(10, 110, 10):
+            self.clean_cache()
             recvd_bytes_list = []
             transmit_bytes_list = []
             io_bw_list = []
@@ -74,13 +77,14 @@ class WriteBenchmark(object):
             for i in range(iter_num):
                 recvd_bytes = self.pnd['ens5']['receive']['bytes']
                 transmit_bytes = self.pnd['ens5']['transmit']['bytes']
-		# start_time = time.time()
+		start_time = time.time()
                 p = subprocess.Popen(["fio", "fio_write_{}".format(random_percent), "--output-format=json"], stdout=subprocess.PIPE)
+                # p = subprocess.Popen(["fio", "fio_overhead_{}".format(random_percent), "--output-format=json"], stdout=subprocess.PIPE)
                 output, err = p.communicate()
-		# end_time = time.time()-start_time
-		# io_bw_list.append((random_percent*1280.0*25.0)/(end_time*100))
-		# time_list.append(end_time)
-                io_bw_list.append(float(json.loads(output)['jobs'][0]['write']['bw'])/1024)
+		end_time = time.time()-start_time
+		io_bw_list.append((random_percent*1280.0*25.0)/(end_time*100))
+		time_list.append(end_time)
+                # io_bw_list.append(float(json.loads(output)['jobs'][0]['write']['bw'])/1024)
                 recvd_bytes_list.append(self.pnd['ens5']['receive']['bytes']-recvd_bytes)
                 transmit_bytes_list.append(self.pnd['ens5']['transmit']['bytes']-transmit_bytes)
                 self.clean_cache()
