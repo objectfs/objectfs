@@ -178,7 +178,7 @@ class S3Object(DataObject):
         """Size of object"""
         try:
             return self._object.content_length
-        except:
+        except Exception as e:
             print(e)
             raise e
 
