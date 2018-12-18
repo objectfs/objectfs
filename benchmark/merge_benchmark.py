@@ -33,7 +33,7 @@ from procnetdev import ProcNetDev
 BASE_SIZE = 1600
 LOG_SIZE = 40
 NUM_ITER = 5
-FS_NAME = 'kunalfs2'
+FS_NAME = 'kunalfs3'
 NUM_THREADS = 1
 INODE_ID_LIST = range(71, 150, 1)
 DISPERSIVE_INDEX = 4
@@ -120,10 +120,10 @@ class MergeBenchmark(object):
             
             recvd_bytes = self.pnd['ens5']['receive']['bytes']
             transmit_bytes = self.pnd['ens5']['transmit']['bytes']
-            start_time = time.time()
             for file_num in range(NUM_FILES):
+                start_time = time.time()
                 merge_log_objects_parallel(self.fs_name, inode_id, self.parse_args.num_threads) 
-            run_time_list.append(time.time()-start_time)
+            	run_time_list.append(time.time()-start_time)
             recvd_bytes_list.append(self.pnd['ens5']['receive']['bytes']-recvd_bytes)
             transmit_bytes_list.append(self.pnd['ens5']['transmit']['bytes']-transmit_bytes)
             
