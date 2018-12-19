@@ -22,7 +22,7 @@ import llfuse
 from objectfs.core.objectfs_operations import ObjectFsOperationsFactory
 from objectfs.core.metadata.superblock import SuperBlock
 from objectfs.core.data.objectstore import ObjectStoreFactory
-from objectfs.core.metadata.metastore import MetaStore
+from objectfs.core.metadata.metastore import MetaStoreFactory
 from objectfs.settings import Settings
 settings = Settings()
 import logging
@@ -95,8 +95,8 @@ class ObjectFs(object):
         # turn on debug mode if flag is passed
         if self.parser_args.debug:
           fuse_options.add('debug')
-        # fuse_options.add('max_read=131072')
-        # fuse_options.add('max_write=262144')
+        fuse_options.add('max_read=16777216')
+        fuse_options.add('max_write=16777216')
         # fuse_options.add('async')
         # fuse_options.add('large_read')
         # fuse_options.add('auto_cache')
@@ -136,7 +136,7 @@ class ObjectFs(object):
         super_block = SuperBlock(self.parser_args.name)
         super_block.delete_superblock()
         # delete all the inodes
-        MetaStore.load(self.parser_args.name)._clean_store()
+        MetaStoreFactory.create_store(self.parser_args.name)._clean_store()
         # delete the container and all objects within it
         ObjectStoreFactory.create_store(self.parser_args.name).container.delete()
         # print message
