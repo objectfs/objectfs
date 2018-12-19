@@ -28,7 +28,7 @@ from argparse import ArgumentParser
 from multiprocessing import Pool
 from multiprocessing.sharedctypes import Value
 from objectfs.core.data.objectstore import ObjectStoreFactory
-from objectfs.core.metadata.metastore import MetaStore
+from objectfs.core.metadata.metastore import MetaStoreFactory
 from objectfs.core.cache.cachestore import CacheStoreFactory
 from objectfs.core.metadata.inode import Inode
 from objectfs.core.metadata.superblock import SuperBlock
@@ -52,7 +52,7 @@ class ObjectFsOperations(llfuse.Operations):
         super(ObjectFsOperations, self).__init__()
         self._fs_name = fs_name
         # loading the meta-store
-        self._meta_store = MetaStore.load(self.fs_name)
+        self._meta_store = MetaStoreFactory.create_store(self.fs_name)
         # loading the superblock
         self._super_block = SuperBlock(self.fs_name)
         # loading the data-store aka object-store
@@ -614,6 +614,7 @@ class ObjectFsOperationsMultipart(ObjectFsOperations):
         self._local_clean_set = collections.defaultdict(Set)
         self._local_fragment_map = collections.defaultdict(list)
         self._pool = Pool(processes=4)
+        self._counter = 0
 
     
     def setattr(self, inode_id, attr, fields, fh, ctx):
@@ -697,7 +698,7 @@ class ObjectFsOperationsMultipart(ObjectFsOperations):
         object_block_id = offset // settings.DATA_BLOCK_SIZE
         new_offset = offset - (object_block_id*settings.DATA_BLOCK_SIZE)
         
-        data_size = inode.size
+        # data_size = inode.size
         # adding data as cache block
         self._cache_store.write_inode(inode_id, new_offset, buf, object_block_id)
         # adding cache fragment index
@@ -709,6 +710,16 @@ class ObjectFsOperationsMultipart(ObjectFsOperations):
         
         # inode.size = max(data_size, len(buf)+offset)
         # self._super_block.incr_used_size(inode.size-data_size)
+
+        # enqueue block for upload
+        if object_block_id > self._counter:
+            # import pdb; pdb.set_trace()
+            from objectfs.core.cache.cachetask import upload_object_block
+            self._pool.map_async(upload_object_block, [(self.fs_name, inode_id, object_block_id-1)])
+            # self._pool.map(upload_object_block, [(self.fs_name, inode_id, object_block_id-1)])
+            # upload_object_block((self.fs_name, inode_id, object_block_id-1))
+            self._counter += 1
+
         return len(buf)
    
     def fsync(self, inode_id, datasync):
@@ -765,7 +776,7 @@ class ObjectFsOperationsMultipart(ObjectFsOperations):
         self._dirty_set.remove(inode_id, block_list)
         self._clean_set.add(inode_id, block_list)
         # intiate merge task for inode
-        # self._cache_queue.enqueue_merge_task(inode_id)
+        self._cache_queue.enqueue_merge_task(inode_id)
 
         # # contains the list of jobs which we have launched
         # job_list = []
@@ -781,12 +792,11 @@ class ObjectFsOperationsMultipart(ObjectFsOperations):
             # for job in job_list:
                 # if job.status == 'finished':
                     # # save part etag mapping for completion
-                    # # import pdb; pdb.set_trace()
                     # etag_part_list.append({'ETag': job.result[0], 'PartNumber': job.result[1]})
                     # # remove job from list
                     # job_list.remove(job)
         # # complete the multipart upload
-         self._data_store.container.object(str(inode_id)).complete_multipart_upload(multi_part_obj.id, etag_part_list)
+        # self._data_store.container.object(str(inode_id)).complete_multipart_upload(multi_part_obj.id, etag_part_list)
 
     def release(self, inode_id):
         """Relase a file"""
@@ -796,7 +806,9 @@ class ObjectFsOperationsMultipart(ObjectFsOperations):
         inode.open_count -= 1
         
         # check if the file is open or not
-        # if inode.open_count == 0:
+        if inode.open_count == 0:
+            print("Sync")
+            self._counter = 0
             # self._sync(inode_id)
 
 class ObjectFsOperationsFactory(object):
