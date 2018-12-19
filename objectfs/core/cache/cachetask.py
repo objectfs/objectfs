@@ -50,6 +50,25 @@ def download_object_block(fs_name, inode_id, object_block_id, offset, size):
         return data[offset:offset+size]
 
 # @job('default', connection=redis_client, timeout=100)
+def upload_object_block((fs_name, inode_id, object_block_id)):
+    """Upload object block task"""
+    data_store = ObjectStoreFactory.create_store(fs_name)
+    cache_store = CacheStoreFactory.create_store(fs_name)
+    fragment_map = FragmentMap(fs_name)
+    merge_queue = MergeQueue(fs_name)
+    flush_time = int(time())
+    
+    # read data from cache
+    data = cache_store.get_inode(inode_id, object_block_id)
+    # upload log object
+    log_object_name = fragment_map._log_key(inode_id, [object_block_id], flush_time)
+    data_store.put_dnode(inode_id, data, log_object_name)
+    # insert log object in merge queue
+    merge_queue.insert(inode_id, log_object_name)
+    # remove data from cache
+    cache_store.remove_inode(inode_id, object_block_id)
+
+# @job('default', connection=redis_client, timeout=100)
 def prefetch_object_block((fs_name, inode_id, object_block_id)):
     """Prefetch object block task"""
     data_store = ObjectStoreFactory.create_store(fs_name)
