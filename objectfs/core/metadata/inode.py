@@ -212,29 +212,29 @@ class Inode(object):
 
     @property
     def inode_id_list(self):
-        from objectfs.core.metadata.metastore import MetaStore
-        return MetaStore.load(self.fs_name).get_inode_id_list(self.id)
+        from objectfs.core.metadata.metastore import MetaStoreFactory
+        return MetaStoreFactory.create_store(self.fs_name).get_inode_id_list(self.id)
         # return self._inode_id_list
     
     @property
     def length_inode_id_list(self):
-        from objectfs.core.metadata.metastore import MetaStore
-        return MetaStore.load(self.fs_name).length_inode_id_list(self.id)
+        from objectfs.core.metadata.metastore import MetaStoreFactory
+        return MetaStoreFactory.create_store(self.fs_name).length_inode_id_list(self.id)
 
     def add_id_to_list(self, new_id):
         # KL TODO check that this only happens for DIR
-        from core.filesystem.metadata import MetaStore
+        from core.filesystem.metadata import MetaStoreFactory
         logger.debug("Add inode no {} to list of {}".format(new_id, self.id))
-        MetaStore.load(self.fs_name).add_inode_id_to_list(self.id, new_id)
+        MetaStoreFactory.create_store(self.fs_name).add_inode_id_to_list(self.id, new_id)
         # return self._inode_id_list.append(new_id)
 
     def remove_id_from_list(self, existing_id):
         # KL TODO check that this only happens for DIR
-        from core.filesystem.metadata import MetaStore
+        from core.filesystem.metadata import MetaStoreFactory
         logger.debug("Remove inode no {} from list of {}".format(new_id, self.id))
-        MetaStore.load(self.fs_name).remove_inode_id_from_list(self.id, existing_id)
+        MetaStoreFactory.create_store(self.fs_name).remove_inode_id_from_list(self.id, existing_id)
 
     def update(self):
         """Save the changed object to memory store"""
-        from objectfs.core.metadata.metastore import MetaStore
-        MetaStore.load(self.fs_name).update_inode(self)
+        from objectfs.core.metadata.metastore import MetaStoreFactory
+        MetaStoreFactory.create_store(self.fs_name).update_inode(self)

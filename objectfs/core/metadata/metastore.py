@@ -30,17 +30,17 @@ LIST_DELMITER = '&'
 
 class MetaStore(object):
     
-    @staticmethod
-    def load(fs_name, memory_store='Redis'):
-        return MetaStore.get_store(memory_store)(fs_name)
+    # @staticmethod
+    # def load(fs_name, memory_store='Redis'):
+        # return MetaStore.get_store(memory_store)(fs_name)
     
-    @staticmethod
-    def get_store(memory_store='Redis'):
-        if memory_store == 'Redis':
-            return RedisMetaStore
-        else:
-            logger.error("Meta store in {} is not supported".format(memory_store))
-            raise e
+    # @staticmethod
+    # def get_store(memory_store='Redis'):
+        # if memory_store == 'Redis':
+            # return RedisMetaStore
+        # else:
+            # logger.error("Meta store in {} is not supported".format(memory_store))
+            # raise e
 
     @abstractmethod
     def get_inode(self, inode_id):
@@ -307,3 +307,18 @@ class RedisMetaStore(MetaStore):
         except Exception as e:
             logger.error("Get length of inode:{} list".format(inode_id), exc_info=True)
             raise e
+
+class MetaStoreFactory(object):
+
+    __store_classes = {
+          'Redis': RedisMetaStore,
+    }
+
+    @staticmethod
+    def create_store(fs_name, meta_store=settings.META_STORE):
+        store_class = MetaStoreFactory.__store_classes.get(meta_store)
+        if store_class:
+            return store_class(fs_name)
+        else:
+            logger.error("Meta store in {} is not supported".format(meta_store))
+            raise NotImplementedError("Meta store in {} is not supported".format(meta_store))

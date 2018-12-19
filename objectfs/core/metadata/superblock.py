@@ -16,7 +16,7 @@
 from __future__ import absolute_import, print_function
 import llfuse
 import errno
-from objectfs.core.metadata.metastore import MetaStore
+from objectfs.core.metadata.metastore import MetaStoreFactory
 from objectfs.settings import Settings
 settings = Settings()
 import logging
@@ -30,7 +30,7 @@ class SuperBlock(object):
     def __init__(self, name):
         """Init the class object"""
         self._name = name
-        self._meta_store = MetaStore.load(name)
+        self._meta_store = MetaStoreFactory.create_store(name)
         self._max_inodes = self._wrap_with_delimiter(settings.SB_MAX_INODES)
         self._inode_counter = self._wrap_with_delimiter(settings.SB_INODE_COUNTER)
         self._block_size = self._wrap_with_delimiter(settings.SB_BLOCK_SIZE)
