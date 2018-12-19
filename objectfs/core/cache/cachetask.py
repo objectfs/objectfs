@@ -20,6 +20,7 @@ from sets import Set
 from rq.decorators import job
 from objectfs.core.data.objectstore import ObjectStoreFactory
 from objectfs.core.cache.cachestore import CacheStoreFactory
+from objectfs.core.metadata.metastore import MetaStoreFactory
 from objectfs.core.common.mergequeue import MergeQueue
 from objectfs.core.common.fragmentmap import FragmentMap
 from objectfs.settings import Settings
@@ -83,8 +84,10 @@ def multipart_upload_object_block((fs_name, inode_id, object_block_id, multipart
 def merge_log_objects(fs_name, inode_id):
     data_store = ObjectStoreFactory.create_store(fs_name)
     cache_store = CacheStoreFactory.create_store(fs_name)
+    meta_store = MetaStoreFactory.create_store(fs_name)
     merge_queue = MergeQueue(fs_name)
     fragment_map = FragmentMap(fs_name)
+    inode = meta_store.get_inode(inode_id)
     
     log_object_list = []
     for log_object in merge_queue.fetch(inode_id):
@@ -112,7 +115,8 @@ def merge_log_objects(fs_name, inode_id):
         object_id_set = object_id_set.union(log_object_set)
     
     # upload the remaining from the base object
-    base_obj_set = Set(range(data_store.dnode_size(inode_id)//settings.DATA_BLOCK_SIZE))
+    # base_obj_set = Set(range(data_store.dnode_size(inode_id)//settings.DATA_BLOCK_SIZE))
+    base_obj_set = Set(range(inode.size//settings.DATA_BLOCK_SIZE+1))
     for block_id in base_obj_set.symmetric_difference(object_id_set):
         data = data_store.get_dnode(inode_id, int(block_id))
         print("Base:", block_id)
@@ -120,9 +124,9 @@ def merge_log_objects(fs_name, inode_id):
         # job_result = data_store.multipart_copy_dnode(inode_id, int(block_id), base_obj.id, inode_id, int(block_id))
         etag_part_list.append({'ETag': job_result[0], 'PartNumber': job_result[1]})
 
-    etag_part_list.sort()
-    # from operator import itemgetter
-    # etag_part_list = sorted(etag_part_list, key=itemgetter('PartNumber'))
+    # etag_part_list.sort()
+    from operator import itemgetter
+    etag_part_list = sorted(etag_part_list, key=itemgetter('PartNumber'))
     # complete multipart upload
     data_store.container.object(inode_id).complete_multipart_upload(base_obj.id, etag_part_list)
     # remove log object from object store and merge queue
