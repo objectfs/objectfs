@@ -112,6 +112,15 @@ class Settings(object):
     def CACHE_STORES_SUPPORTED(self):
         """List of supported cache stores"""
         return self._convert_list(self.parser.get('cache', 'cache_stores_supported'))
+    
+    @property
+    def META_STORE(self):
+        return self.parser.get('meta', 'name')
+
+    @property
+    def META_STORES_SUPPORTED(self):
+        """List of supported meta stores"""
+        return self._convert_list(self.parser.get('meta', 'meta_stores_supported'))
 
     @property
     def NUM_THREADS(self):

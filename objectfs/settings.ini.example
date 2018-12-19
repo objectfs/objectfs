@@ -39,6 +39,10 @@ db = 0
 max_connections = 1000
 [file-cache]
 mount_point = /data/tmpfs
+[meta]
+; options possible are Redis
+meta_stores_supported = Redis
+name = Redis
 [loggers]
 keys = root,core,core.cache,core.data,core.metadata
 [handlers]
