@@ -67,6 +67,7 @@ def upload_object_block((fs_name, inode_id, object_block_id)):
     merge_queue.insert(inode_id, log_object_name)
     # remove data from cache
     cache_store.remove_inode(inode_id, object_block_id)
+    merge_queue.insert(inode_id, log_object_name)
 
 # @job('default', connection=redis_client, timeout=100)
 def prefetch_object_block((fs_name, inode_id, object_block_id)):
