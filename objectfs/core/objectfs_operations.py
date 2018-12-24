@@ -22,7 +22,7 @@ import llfuse
 import stat
 import copy
 import math
-from time import time
+from time import time, sleep
 from llfuse import FUSEError
 from argparse import ArgumentParser
 from multiprocessing import Pool
@@ -36,6 +36,7 @@ from objectfs.core.cache.cachequeue import CacheQueue
 from objectfs.core.common.fragmentmap import FragmentMap
 from objectfs.core.common.blockset import CleanSet, DirtySet
 from objectfs.core.common.mergequeue import MergeQueue
+from objectfs.core.cache.cachetask import upload_object_block, prefetch_object_block, multipart_upload_object_block
 from objectfs.settings import Settings
 settings = Settings()
 import logging
@@ -660,7 +661,6 @@ class ObjectFsOperationsMultipart(ObjectFsOperations):
             data = self._cache_store.read_inode(inode_id, new_off, size, object_block_id)
         else:
             # self._dirty_set.read()
-            from objectfs.core.cache.cachetask import prefetch_object_block
             prefetch_list = []
             if object_block_id == 0:
                 for new_id in range(object_block_id+1, inode.size//settings.DATA_BLOCK_SIZE, 1):
@@ -698,7 +698,7 @@ class ObjectFsOperationsMultipart(ObjectFsOperations):
         object_block_id = offset // settings.DATA_BLOCK_SIZE
         new_offset = offset - (object_block_id*settings.DATA_BLOCK_SIZE)
         
-        # data_size = inode.size
+        data_size = inode.size
         # adding data as cache block
         self._cache_store.write_inode(inode_id, new_offset, buf, object_block_id)
         # adding cache fragment index
@@ -708,13 +708,12 @@ class ObjectFsOperationsMultipart(ObjectFsOperations):
         self._local_dirty_set[inode_id].add((inode_id, object_block_id))
         # self._dirty_set.add(inode_id, [object_block_id])
         
-        # inode.size = max(data_size, len(buf)+offset)
+        inode.size = max(data_size, len(buf)+offset)
         # self._super_block.incr_used_size(inode.size-data_size)
 
         # enqueue block for upload
         if object_block_id > self._counter:
             # import pdb; pdb.set_trace()
-            from objectfs.core.cache.cachetask import upload_object_block
             self._pool.map_async(upload_object_block, [(self.fs_name, inode_id, object_block_id-1)])
             # self._pool.map(upload_object_block, [(self.fs_name, inode_id, object_block_id-1)])
             # upload_object_block((self.fs_name, inode_id, object_block_id-1))
@@ -730,8 +729,6 @@ class ObjectFsOperationsMultipart(ObjectFsOperations):
         """Flush to log"""
         inode = self._meta_store.get_inode(inode_id)
           
-        from objectfs.core.cache.cachetask import multipart_upload_object_block
-        from time import time
         block_list = []
         etag_part_list = []
         args_list = []
@@ -797,6 +794,13 @@ class ObjectFsOperationsMultipart(ObjectFsOperations):
                     # job_list.remove(job)
         # # complete the multipart upload
         # self._data_store.container.object(str(inode_id)).complete_multipart_upload(multi_part_obj.id, etag_part_list)
+    
+    def _sync2(inode_id):
+        """Different sync"""
+        sleep(4)
+        self._pool.map_async(upload_object_block, [(self.fs_name, inode_id, self._counter)])
+        self._cache_queue.enqueue_merge_task(inode_id)
+
 
     def release(self, inode_id):
         """Relase a file"""
@@ -807,9 +811,10 @@ class ObjectFsOperationsMultipart(ObjectFsOperations):
         
         # check if the file is open or not
         if inode.open_count == 0:
-            print("Sync")
-            self._counter = 0
+            print("Merge")
             # self._sync(inode_id)
+            # self._sync2(inode_id)
+            self._counter = 0
 
 class ObjectFsOperationsFactory(object):
     
