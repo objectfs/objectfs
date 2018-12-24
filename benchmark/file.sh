@@ -1,6 +1,8 @@
 #!/bin/bash
 
-for value in {10..100..10}
+base=test
+
+for value in {0..1000..1}
 do
-  dd of=$value if=/dev/zero bs=1M count=$value
+  touch /data/kunalfs/$value$base
 done  
