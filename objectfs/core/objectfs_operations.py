@@ -22,6 +22,9 @@ import llfuse
 import stat
 import copy
 import math
+import collections
+import threading
+from sets import Set
 from time import time, sleep
 from llfuse import FUSEError
 from argparse import ArgumentParser
@@ -36,6 +39,7 @@ from objectfs.core.cache.cachequeue import CacheQueue
 from objectfs.core.common.fragmentmap import FragmentMap
 from objectfs.core.common.blockset import CleanSet, DirtySet
 from objectfs.core.common.mergequeue import MergeQueue
+from objectfs.core.common.snslistenser import SnsHttpFactory
 from objectfs.core.cache.cachetask import upload_object_block, prefetch_object_block, multipart_upload_object_block
 from objectfs.settings import Settings
 settings = Settings()
@@ -609,13 +613,16 @@ class ObjectFsOperationsMultipart(ObjectFsOperations):
         # loading the merge queue
         self._merge_queue = MergeQueue(fs_name)
         # local variables
-        import collections
-        from sets import Set
         self._local_dirty_set = collections.defaultdict(Set)
         self._local_clean_set = collections.defaultdict(Set)
         self._local_fragment_map = collections.defaultdict(list)
         self._pool = Pool(processes=4)
         self._counter = 0
+
+        # launch sns listener thread
+        self.sns_thread = threading.Thread(target=SnsHttpFactory.run_server(self), name='SNS')
+        self.sns_thread.deamon = True
+        self.sns_thread.start()
 
     
     def setattr(self, inode_id, attr, fields, fh, ctx):

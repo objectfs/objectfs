@@ -201,3 +201,11 @@ class Settings(object):
     @property
     def SB_FREE_INODE_ID(self):
         return self.parser.get('file-system-superblock', 'free_inode_id')
+    
+    @property
+    def SNS_HOST(self):
+        return self.parser.get('sns', 'host')
+    
+    @property
+    def SNS_PORT(self):
+        return self.parser.getint('sns', 'port')
