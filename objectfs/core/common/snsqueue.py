@@ -11,7 +11,7 @@ class SnsConnection(object):
 class SnsTopic(object):
 
     def __init__(self, topic_name):
-        sns = boto3.resource('sns', region_name=settings.S3_AWS_REGION, endpoint_url=settings.S3_ENDPOINT, aws_access_key=settings.AWS_ACCESS_KEY_ID, aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY)
+        sns = boto3.resource('sns', region_name=settings.S3_AWS_REGION, endpoint_url=settings.S3_ENDPOINT, aws_access_key_id=settings.AWS_ACCESS_KEY_ID, aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY)
         self.topic = sns.Topic(topic_name)
         self.endpoint = 'http://{}:{}'.format(settings.SNS_HOST, settings.SNS_PORT)
 

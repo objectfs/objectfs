@@ -16,19 +16,25 @@ class SnsHttpRequestHandler(BaseHTTPRequestHandler):
     
     def do_GET(self):
         """Get is not supported"""
+        print("GET")
         self.send_response(404)
 
     def do_HEAD(self):
         """Head is not supported"""
+        print("HEAD")
         self.send_response(404)
 
     def do_POST(self):
         """A notification is posted"""
-        
+
+        print("POST")
         import pdb; pdb.set_trace()
         content_length = self.headers.getheader('content-length')
         post_body = self.rfile.read(content_length)
         message_content = json.loads(post_body)
+	message_type = self.headers.getheader('x-amz-sns-message-type')
+	if message_type == 'SubscriptionConfirmation':
+	    token = message_content['Token']
         # logic to update local memory
         # self.server.fs
 
