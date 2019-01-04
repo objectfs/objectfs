@@ -23,7 +23,6 @@ import stat
 import copy
 import math
 import collections
-import threading
 from sets import Set
 from time import time, sleep
 from llfuse import FUSEError
@@ -40,6 +39,7 @@ from objectfs.core.common.fragmentmap import FragmentMap
 from objectfs.core.common.blockset import CleanSet, DirtySet
 from objectfs.core.common.mergequeue import MergeQueue
 from objectfs.core.common.snslistenser import SnsHttpFactory
+from objectfs.core.common.objectfsthread import ObjectFSThread
 from objectfs.core.cache.cachetask import upload_object_block, prefetch_object_block, multipart_upload_object_block
 from objectfs.settings import Settings
 settings = Settings()
@@ -619,11 +619,19 @@ class ObjectFsOperationsMultipart(ObjectFsOperations):
         self._pool = Pool(processes=4)
         self._counter = 0
 
-        # launch sns listener thread
-        self.sns_thread = threading.Thread(target=SnsHttpFactory.run_server(self), name='SNS')
+        # launch sns listener thread in background
+        self.sns_thread = ObjectFSThread(target=self._run_notification_server, name='SNS')
         self.sns_thread.deamon = True
         self.sns_thread.start()
+    
+    def _run_notification_server(self):
+        """Run the notificaiton server"""
+        SnsHttpFactory.run_server(self)
 
+    def process_notification(self, bucket_name, object_key):
+        """Process the SNS notification"""
+        print("Processing notification")
+        print(bucket_name, object_key)
     
     def setattr(self, inode_id, attr, fields, fh, ctx):
         """Change the attributes of an inode"""
