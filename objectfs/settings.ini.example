@@ -43,6 +43,11 @@ mount_point = /data/tmpfs
 ; options possible are Redis
 meta_stores_supported = Redis
 name = Redis
+[sns]
+; topic name is topic arn
+topic_name = 
+host = 
+port = 8000
 [loggers]
 keys = root,core,core.cache,core.data,core.metadata
 [handlers]

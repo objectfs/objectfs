@@ -203,6 +203,10 @@ class Settings(object):
         return self.parser.get('file-system-superblock', 'free_inode_id')
     
     @property
+    def SNS_TOPIC_NAME(self):
+        return self.parser.get('sns', 'topic_name')
+    
+    @property
     def SNS_HOST(self):
         return self.parser.get('sns', 'host')
     

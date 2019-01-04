@@ -1,5 +1,5 @@
 # objectfs files
-# settings.ini
+settings.ini
 
 # google cloud store keys
 *.json
